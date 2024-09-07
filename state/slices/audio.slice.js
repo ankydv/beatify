@@ -2,6 +2,8 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import TrackPlayer, { Capability } from "react-native-track-player";
 import getMetadata from "@/services/metadata.service";
 import Metadata from "@/utils/metadata.utils";
+import {fetchLyrics} from "@/services/lyrics.service";
+import { parseSyncedLyrics } from "@/utils/lyrics.utils";
 
 // Initial state
 const initialState = {
@@ -11,6 +13,7 @@ const initialState = {
   queue: [],
   isInitialized: false,
   error: null,
+  lyrics: null,
 };
 
 // Thunk to initialize TrackPlayer
@@ -41,7 +44,7 @@ export const initializePlayer = createAsyncThunk(
 export const loadAndPlayTrack = createAsyncThunk(
   "audio/loadAndPlayTrack",
   async (track, { dispatch, getState }) => {
-    console.log(getState().audio.isInitialized);
+    dispatch(resetAudio());
     try {
       if (!getState().audio.isInitialized) {
         dispatch(setIsInitialized(true));
@@ -63,17 +66,20 @@ export const loadAndPlayTrack = createAsyncThunk(
       await TrackPlayer.add([track1]);
 
       await TrackPlayer.play();
-
+      
       // Fetch related tracks to update the queue
       const queueTracks = null;
 
       dispatch(setQueue(queueTracks));
       dispatch(setCurrentTrack(track));
       dispatch(setIsPlaying(true));
+    const lyrics = await fetchLyrics(md.getArtists(), md.getTitle(), md.duration);
+    dispatch(setLyrics(parseSyncedLyrics(lyrics?.syncedLyrics)));
     } catch (error) {
       console.error("Error loading track:", error);
       throw error;
     }
+    
   }
 );
 
@@ -97,10 +103,13 @@ const audioSlice = createSlice({
     setIsInitialized(state, action) {
       state.isInitialized = action.payload;
     },
+    setLyrics(state, action){
+      state.lyrics = action.payload;
+    },
     resetAudio(state) {
       state.isPlaying = false;
-      state.currentTrack = null;
-      state.queue = [];
+      state.lyrics=null;
+      state.metadata=null;
       state.error = null;
     },
     setError(state, action) {
@@ -130,5 +139,6 @@ export const {
   setError,
   setIsInitialized,
   setMetadata,
+  setLyrics,
 } = audioSlice.actions;
 export default audioSlice.reducer;

@@ -2,8 +2,13 @@ import React from "react";
 import { Image, Pressable, StyleSheet } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Text, View } from "./Themed";
+import { useDispatch } from "react-redux";
+import { loadAndPlayTrack } from "@/state/slices/audio.slice";
 
-const MusicListItem = ({ imageUrl, title, subtitle, onPress, onMorePress }) => {
+const MusicListItem = ({onPress, imageUrl, title, subtitle, onMorePress }) => {
+
+  
+
   return (
     <Pressable onPress={onPress} style={[styles.container]}>
       <Image source={{ uri: imageUrl }} style={styles.image} />
@@ -28,8 +33,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
   },
   image: {
     width: 50,
