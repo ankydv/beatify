@@ -27,7 +27,8 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: useClientOnlyValue(false, true),
-      }}>
+      }}
+      sceneContainerStyle={{marginBottom: currentTrack ? 70 : 0}}>
       <Tabs.Screen
         name="index"
         options={{

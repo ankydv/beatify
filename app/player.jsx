@@ -19,16 +19,21 @@ import TrackPlayer, {
 import { useNavigation } from "expo-router";
 import useAudioControls from "../hooks/audio.hooks";
 import { BlurView } from "@react-native-community/blur";
+import Lyrics from "../components/Lyrics";
+import LyricsToggleButton from "../components/LyricsToggleButton";
 
 const Player = () => {
   const [isFullScreen, setIsFullScreen] = useState(true);
 
-  const { metadata } = useSelector((state) => state.audio);
+  const { metadata, lyrics } = useSelector((state) => state.audio);
   const md = new Metadata(metadata);
   const progress = useProgress();
   const playback = usePlaybackState();
   const navigation = useNavigation();
   const { handleTogglePlayback } = useAudioControls();
+
+  const [isLyricsVisible, setIsLyricsVisible] = useState(false);
+
 
   const formatTime = (timeSeconds) => {
     const minutes = Math.floor(timeSeconds / 60);
@@ -44,6 +49,10 @@ const Player = () => {
       console.error("Error seeking audio:", error);
     }
   };
+
+  const toggleLyricsVisibility = () => {
+    setIsLyricsVisible(!isLyricsVisible);
+  }
 
   useEffect(() => {
     navigation.setOptions({
@@ -73,15 +82,19 @@ const Player = () => {
           <AntDesign name="down" size={15} color={"white"} />
         </TouchableOpacity>
         <View style={styles.albumArtContainer}>
-          <View style={styles.albumArtWrapper}>
+          {!isLyricsVisible && <View style={styles.albumArtWrapper}>
             <Image
-              source={{ uri: md.getThumbUrl("small") }}
+              source={{ uri: md.getThumbUrl("large") }}
               style={styles.albumArt}
             />
-          </View>
+          </View>}
+          {isLyricsVisible && <Lyrics />}
         </View>
         <View style={styles.controlsContainer}>
           <View style={styles.infoContainer}>
+            <View styele={styles.togglesContainer}>
+              {lyrics && <LyricsToggleButton isLyricsVisible={isLyricsVisible} onToggle={toggleLyricsVisibility}/>}
+            </View>
             <Text style={[styles.title, styles.shadowText]}>
               {md.getTitle()}
             </Text>
@@ -192,6 +205,10 @@ const styles = StyleSheet.create({
   infoContainer: {
     width: "100%",
     padding: 20,
+  },
+  togglesContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
   },
   title: {
     fontSize: 20,

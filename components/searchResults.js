@@ -1,34 +1,18 @@
 import React from "react";
-import MusicListItem from "../components/songListItem";
-import { View } from "react-native";
-import { loadAndPlayTrack } from "@/state/slices/audio.slice";
-import { useDispatch } from "react-redux";
+import MusicList from "./MusicList";
+import { ScrollView } from "react-native";
+import { Text, View } from "./Themed";
 
 const SearchResults = ({ results }) => {
-  const dispatch = useDispatch();
-  const formatArtists = (artists) => {
-    if (!artists || artists.length === 0) return "";
-    return artists.map((artist) => artist.name).join(" ");
-  };
-
-  const handlePress = (song) => {
-    dispatch(loadAndPlayTrack(song));
-    console.log(song);
-  };
-
   return (
-    <View>
-      {results.data &&
-        results.data.map((song, index) => (
-          <MusicListItem
-            key={index}
-            title={song.title}
-            subtitle={formatArtists(song.artists)}
-            imageUrl={song.thumbnails[0].url}
-            onPress={() => handlePress(song)}
-          />
-        ))}
-    </View>
+    <ScrollView>
+      {results?.map((item, index) => (
+        <View key={index}>
+          <Text style={{fontSize: 20, fontWeight: 'bold', padding: 10}}>{item.category}</Text>
+          <MusicList dataset={item.data} />
+        </View>
+      ))}
+    </ScrollView>
   );
 };
 

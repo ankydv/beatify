@@ -9,7 +9,6 @@ const SearchBar = ({ onSubmit }) => {
   const theme = useTheme();
   const handleSearchSubmit = () => {
     if (searchText.trim()) {
-      console.log(searchText);
       onSubmit(searchText);
     }
   };

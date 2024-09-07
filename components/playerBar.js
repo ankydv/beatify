@@ -22,7 +22,6 @@ const PlayerBar = () => {
   const togglePlayBack = async () => {
     const currentTrack = await TrackPlayer.getActiveTrackIndex();
     if (currentTrack >= 0) {
-      console.log(State.Paused);
       if ((playback.state == State.Paused) | (playback.state == State.Ready)) {
         await TrackPlayer.play();
       } else {

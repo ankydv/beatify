@@ -16,7 +16,7 @@ const Search = () => {
       const response = await axios.get(
         `${API_URL}/api/search/${encodeURIComponent(searchValue)}`
       );
-      setResults(rearrangeResponse(response.data)[1]);
+      setResults(rearrangeResponse(response.data));
     } catch (error) {
       console.error("Error fetching search results:", error);
     }
