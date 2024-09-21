@@ -1,5 +1,6 @@
 export const parseSyncedLyrics = (syncedLyrics) => {
-    const lyricsArray = syncedLyrics?.split('\n').map((line) => {
+    if(!syncedLyrics) return null;
+    const lyricsArray = syncedLyrics.split('\n').map((line) => {
       const match = line.match(/\[(\d{2}):(\d{2})\.(\d{2})\]\s*(.*)/);
       if (match) {
         const minutes = parseInt(match[1], 10);

@@ -13,5 +13,5 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-, "app/(tabs)/search.js"  ]
+, "app/(tabs)/search.js", "app/(tabs)/index.js", "components/PlaylistRow.js"  ]
 }

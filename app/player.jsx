@@ -32,7 +32,7 @@ const Player = () => {
   const navigation = useNavigation();
   const { handleTogglePlayback } = useAudioControls();
 
-  const [isLyricsVisible, setIsLyricsVisible] = useState(false);
+  const [isLyricsVisible, setIsLyricsVisible] = useState(lyrics && true);
 
 
   const formatTime = (timeSeconds) => {
@@ -88,7 +88,7 @@ const Player = () => {
               style={styles.albumArt}
             />
           </View>}
-          {isLyricsVisible && <Lyrics />}
+          {isLyricsVisible && lyrics && <Lyrics />}
         </View>
         <View style={styles.controlsContainer}>
           <View style={styles.infoContainer}>
