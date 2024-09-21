@@ -1,30 +1,37 @@
-import { StyleSheet } from 'react-native';
+import React from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import homeData from '@/sample/home'
+import PlaylistRow from '@/components/PlaylistRow';
+import { Text } from '@/components/Themed';
 
-import EditScreenInfo from '@/components/EditScreenInfo';
-import { Text, View } from '@/components/Themed';
+const HomeScreen = () => {
 
-export default function TabOneScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Tab One</Text>
-      <View style={styles.separator} lightColor="#eee" darkColor="rgba(255,255,255,0.1)" />
+      <ScrollView>
+        {homeData.map((section, index) => (
+          <View key={index} style={styles.section}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <PlaylistRow items={section.contents} />
+          </View>
+        ))}
+      </ScrollView>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  title: {
-    fontSize: 20,
+  section: {
+    marginVertical: 10,
+  },
+  sectionTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
-  },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: '80%',
+    marginLeft: 10,
   },
 });
+
+export default HomeScreen;

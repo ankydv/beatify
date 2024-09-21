@@ -111,6 +111,7 @@ const audioSlice = createSlice({
       state.lyrics=null;
       state.metadata=null;
       state.error = null;
+      state.metadata = null;
     },
     setError(state, action) {
       state.error = action.payload;

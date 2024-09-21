@@ -18,14 +18,12 @@ const Lyrics = () => {
       const findCurrentLyric = () => {
         const currentLyric = parsedLyrics.find((line, index) => {
           const nextLine = parsedLyrics[index + 1];
-          return position >= line.time && (!nextLine || position+0.1 < nextLine.time);
+          return position >= line.time-0.5 && (!nextLine || position < nextLine.time-0.5);
         });
-
-        // If no current lyric is found, display '...'
         if (!currentLyric) {
           if (currentLine !== 'music') {
             setCurrentLine('music');
-            animateLyric();  // Optional: You can animate this as well
+            animateLyric(); 
           }
         } else if (currentLyric.text !== currentLine) {
           setCurrentLine(currentLyric.text);
@@ -61,7 +59,7 @@ const Lyrics = () => {
 
   return (
     <View style={styles.container}>
-      {currentLine === 'music' ? (
+      {currentLine === 'music' || currentLine === ''? (
         <FontAwesome name="music" size={40} color="white" />
       ) : (
         <Animated.Text

@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 import TrackPlayer from 'react-native-track-player';
 import store from '@/state/store';
-
+import { LightTheme } from '@/theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { Provider } from 'react-redux';
 TrackPlayer.registerPlaybackService(() => require('./service'));
@@ -54,7 +54,7 @@ function RootLayoutNav() {
 
   return (
     <Provider store={store}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : LightTheme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="player" options={{ headerShown: false }} />
