@@ -3,7 +3,7 @@ import SearchBox from "@/components/searchBox";
 import { SafeAreaView } from "react-native-safe-area-context";
 import axios from "axios";
 import SearchResults from "@/components/searchResults";
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const API_URL = process.env.EXPO_PUBLIC_API_URL2;
 const Search = () => {
   const [results, setResults] = useState([]);
 

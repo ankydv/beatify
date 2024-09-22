@@ -8,6 +8,7 @@ const SongCard = ({ item }) => {
     const artists = 'test artist'
     const dispatch = useDispatch();
   return (
+    <>{item && 
     <TouchableOpacity style={styles.card} onPress={() => dispatch(loadAndPlayTrack(item))}>
       <Image source={{ uri: item.thumbnails[0].url }} style={styles.image} />
       <Text style={styles.title} numberOfLines={1}>
@@ -17,6 +18,8 @@ const SongCard = ({ item }) => {
         {item.subtitle}
       </Text>
     </TouchableOpacity>
+    }
+    </>
   );
 };
 

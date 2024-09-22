@@ -8,7 +8,7 @@ const PlaylistRow = ({ items }) => {
       horizontal
       data={items}
       renderItem={({ item }) => <SongCard item={item}/>}
-      keyExtractor={(item) => item.videoId}
+      keyExtractor={(item) => item?.title}
       showsHorizontalScrollIndicator={false}
     />
   );
