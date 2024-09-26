@@ -9,7 +9,7 @@ const Lyrics = () => {
   const { position } = useProgress();
   const [currentLine, setCurrentLine] = useState('');
 
-  // Animation values
+  const OFFSET =  0.7; //lyrics offset in seconds
   const opacity = useRef(new Animated.Value(0.1)).current;
   const translateY = useRef(new Animated.Value(20)).current;
 
@@ -18,7 +18,7 @@ const Lyrics = () => {
       const findCurrentLyric = () => {
         const currentLyric = parsedLyrics.find((line, index) => {
           const nextLine = parsedLyrics[index + 1];
-          return position >= line.time-0.5 && (!nextLine || position < nextLine.time-0.5);
+          return position >= line.time-OFFSET && (!nextLine || position < nextLine.time-OFFSET);
         });
         if (!currentLyric) {
           if (currentLine !== 'music') {
