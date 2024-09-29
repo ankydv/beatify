@@ -17,7 +17,7 @@ class Track {
     getThumbUrl(size) {
       if(this.track === null)
         return 'track cannot be null'
-      thumbnails = this.track.thumbnails.sort();
+      thumbnails = this.track.thumbnails ? this.track.thumbnails.sort() : this.track.thumbnail.sort();
       switch(size){
             case 'mini':
                 return thumbnails[0].url;

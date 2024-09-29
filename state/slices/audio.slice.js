@@ -4,6 +4,8 @@ import getMetadata from "@/services/metadata.service";
 import Metadata from "@/utils/metadata.utils";
 import {fetchLyrics} from "@/services/lyrics.service";
 import { parseSyncedLyrics } from "@/utils/lyrics.utils";
+import { getQueue } from "@/services/queue.service";
+import { AppKilledPlaybackBehavior } from 'react-native-track-player';
 
 // Initial state
 const initialState = {
@@ -21,16 +23,28 @@ export const initializePlayer = createAsyncThunk(
   "audio/initializePlayer",
   async () => {
     try {
-      await TrackPlayer.setupPlayer();
+      await TrackPlayer.setupPlayer({autoHandleInterruptions: true});
       await TrackPlayer.updateOptions({
         capabilities: [
           Capability.Play,
           Capability.Pause,
           Capability.SkipToNext,
           Capability.SkipToPrevious,
-          // Capability.SeekTo,
+          Capability.SeekTo,
           // Capability.Like
         ],
+        compactCapabilities: [
+          Capability.Play,
+          Capability.Pause,
+        ],
+        android :{
+          alwaysPauseOnInterruption: true,
+          appKilledPlaybackBehavior: AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
+
+
+        },
+        progressUpdateEventInterval: 0.25,
+        forwardJumpInterval: 5,
       });
     } catch (error) {
       console.error("Error initializing TrackPlayer:", error);
@@ -43,7 +57,7 @@ export const initializePlayer = createAsyncThunk(
 // Thunk to load a track and play it
 export const loadAndPlayTrack = createAsyncThunk(
   "audio/loadAndPlayTrack",
-  async (track, { dispatch, getState }) => {
+  async ({track, isQueueTrack}, { dispatch, getState }) => {
     dispatch(resetAudio());
     try {
       if (!getState().audio.isInitialized) {
@@ -62,24 +76,63 @@ export const loadAndPlayTrack = createAsyncThunk(
         artist: md.getArtists(),
         artwork: md.getThumbUrl("mini"),
       };
-
       await TrackPlayer.add([track1]);
-
       await TrackPlayer.play();
-      
-      // Fetch related tracks to update the queue
-      const queueTracks = null;
-
-      dispatch(setQueue(queueTracks));
       dispatch(setCurrentTrack(track));
       dispatch(setIsPlaying(true));
-    const lyrics = await fetchLyrics(md.getArtists(), md.getTitle(), md.duration);
-    dispatch(setLyrics(parseSyncedLyrics(lyrics?.syncedLyrics)));
+      const lyrics = await fetchLyrics(md.getArtists(), md.getTitle(), md.duration);
+      dispatch(setLyrics(parseSyncedLyrics(lyrics?.syncedLyrics)));
+
+      // Fetch related tracks to update the queue
+      if(!isQueueTrack){
+        const queueTracks = await getQueue(track.videoId);
+        dispatch(setQueue(queueTracks));
+      }
     } catch (error) {
       console.error("Error loading track:", error);
       throw error;
     }
     
+  }
+);
+const getCurrentTrackIndex = () => {
+
+}
+export const playNextTrack = createAsyncThunk(
+  'audio/playNextTrack',
+  async (_, { dispatch, getState }) => {
+    const state = getState();
+    const { queue, currentTrack } = state.audio;
+    // Find the index of the current track in the queue
+    const currentIndex = queue.tracks.findIndex(track => track.videoId === currentTrack.videoId);
+    // Check if there is a next track in the queue
+    if (currentIndex !== -1 && currentIndex < queue.tracks.length - 1) {
+      const nextTrack = queue.tracks[currentIndex + 1];
+
+      // Play the next track using loadAndPlayTrack
+      await dispatch(loadAndPlayTrack({ track: nextTrack, isQueueTrack: true })).unwrap();
+    } else {
+      console.log('No more tracks in the queue');
+    }
+  }
+);
+
+export const playPrevTrack = createAsyncThunk(
+  'audio/playNextTrack',
+  async (_, { dispatch, getState }) => {
+    const state = getState();
+    const { queue, currentTrack } = state.audio;
+    // Find the index of the current track in the queue
+    const currentIndex = queue.tracks.findIndex(track => track.videoId === currentTrack.videoId);
+    // Check if there is a next track in the queue
+    if (currentIndex !== -1 && currentIndex > 0) {
+      const prevTrack = queue.tracks[currentIndex - 1];
+
+      // Play the previous track using loadAndPlayTrack
+      await dispatch(loadAndPlayTrack({ track: prevTrack, isQueueTrack: true })).unwrap();
+    } else {
+      console.log('No more tracks in the queue');
+    }
   }
 );
 
@@ -109,9 +162,7 @@ const audioSlice = createSlice({
     resetAudio(state) {
       state.isPlaying = false;
       state.lyrics=null;
-      state.metadata=null;
       state.error = null;
-      state.metadata = null;
     },
     setError(state, action) {
       state.error = action.payload;

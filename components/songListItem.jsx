@@ -1,13 +1,12 @@
 import React from "react";
-import { Image, Pressable, StyleSheet } from "react-native";
+import { Image, Pressable, StyleSheet, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { Text, View } from "./Themed";
-import { useDispatch } from "react-redux";
-import { loadAndPlayTrack } from "@/state/slices/audio.slice";
+import { Text } from "./Themed";
+import { useTheme } from "@react-navigation/native";
 
-const MusicListItem = ({onPress, imageUrl, title, subtitle, onMorePress }) => {
+const MusicListItem = ({onPress, imageUrl, title, subtitle, onMorePress, isQueue }) => {
 
-  
+  const theme = useTheme();
 
   return (
     <Pressable onPress={onPress} style={[styles.container]}>
@@ -21,7 +20,7 @@ const MusicListItem = ({onPress, imageUrl, title, subtitle, onMorePress }) => {
         </Text>
       </View>
       <Pressable onPress={onMorePress} style={styles.moreButton}>
-        <MaterialIcons name="more-vert" size={24} />
+        <MaterialIcons name="more-vert" size={24} color={isQueue ? 'white' : theme.colors.text} />
       </Pressable>
     </Pressable>
   );
