@@ -1,5 +1,6 @@
 import axios from 'axios';
 import querystring from 'querystring';
+import { getCachedMetadata, cacheMetadata } from '@/services/cache.service'
 
 const apiKey = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 const baseUrl = 'https://www.youtube.com/youtubei/v1';
@@ -54,6 +55,16 @@ const callApi = async (endpoint, query, data) => {
 };
 
 const player = async (videoId) => {
+  // Search for metadata in the cache first
+  const cachedMetadata = await getCachedMetadata(videoId);
+  
+  if (cachedMetadata) {
+    // Return the cached metadata if found
+    console.log('returning cached metadata')
+    return cachedMetadata;
+  }
+
+  // Proceed with the API call if metadata is not found in cache
   const endpoint = `${baseUrl}/player`;
   const query = {
     videoId,
@@ -61,16 +72,10 @@ const player = async (videoId) => {
   };
   
   const result = await callApi(endpoint, query, baseData);
+
+  // Cache the result for future use
+  await cacheMetadata(result);
   return result;
 };
-
-// (async () => {
-//   try {
-//     const info = await player('qRBDz7tCCbk');
-//     console.log(info);
-//   } catch (error) {
-//     console.error('Error fetching player info:', error);
-//   }
-// })();
 
 export default player;

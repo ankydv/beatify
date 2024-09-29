@@ -5,7 +5,11 @@
         "distribution": "internal"
       },
       "preview": {
-        "distribution": "internal"
+        "distribution": "internal",
+        "env": {
+          "EXPO_PUBLIC_API_URL": "https://test-server-three-smoky.vercel.app",
+          "EXPO_PUBLIC_API_URL2": "https://euphonic.onrender.com"
+        }
       },
       "production": {}
     }
