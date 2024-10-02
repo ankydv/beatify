@@ -26,7 +26,7 @@ const Queue = ({ setIsQueueVisible }) => {
 
   return (
     <ScrollView
-      style={{ width: "90%", top: 80, height: "100" }}
+      style={{ width: "90%", height: "100" }}
       showsVerticalScrollIndicator={false}
     >
       <Text style={{ fontSize: 18, fontWeight: "bold", marginBottom: 10 }}>
