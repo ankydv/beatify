@@ -12,10 +12,14 @@ import { useNavigation } from "expo-router";
 import { BlurView } from "@react-native-community/blur";
 import Main from "./Main";
 import Queue from "./Queue";
+import { SafeAreaView } from "react-native-safe-area-context";
+import BubbleIcon from "../../components/BubbleIcon";
 
 const Player = () => {
   const [isFullScreen, setIsFullScreen] = useState(true);
   const [isQueueVisible, setIsQueueVisible] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [readyToRenderBlur, setReadyToRenderBlur] = useState(false);
 
   const { metadata } = useSelector((state) => state.audio);
   const md = new Metadata(metadata);
@@ -36,21 +40,38 @@ const Player = () => {
     }
   };
 
+  useEffect(() => {
+    if (imageLoaded) {
+      // Introduce a delay to ensure the image is fully rendered
+      const delayTimeout = setTimeout(() => {
+        setReadyToRenderBlur(true); // BlurView is rendered after the delay
+      }, 90); // Adjust delay as needed
+
+      return () => clearTimeout(delayTimeout); // Cleanup timeout on unmount
+    }
+  }, [imageLoaded]);
+
   return (
     <ImageBackground
       source={{ uri: md.getThumbUrl("large") }}
       style={styles.container}
       resizeMode="cover"
+      onLoadEnd={() => setImageLoaded(true)}
     >
-      <BlurView
+      {readyToRenderBlur && <BlurView
         style={styles.absolute}
         blurType={"dark"}
-        blurAmount={100}
+        blurAmount={32}
         reducedTransparencyFallbackColor="white"
-      />
-      <TouchableOpacity onPress={toggleScreen} style={styles.minimizeButton}>
-        {isQueueVisible ? <Entypo name="cross" size={15} color="white" /> : <AntDesign name="down" size={15} color={"white"} />}
-      </TouchableOpacity>
+        blurRadius={25}
+        downsampleFactor={25}
+        overlayColor="rgba(0, 0, 0, 0.52)"
+      />}
+      <SafeAreaView style={styles.topButtons}>
+        <BubbleIcon onPress={toggleScreen} isMaterialIcon={false} style={{padding: 15}}>
+          {isQueueVisible ? <Entypo name="cross" size={15} color="white" /> : <AntDesign name="down" size={13} color={"white"} />}
+        </BubbleIcon>
+      </SafeAreaView>
       <View style={[styles.fullScreenPlayer, {}]}>
         {isQueueVisible ? (
           <Queue setIsQueueVisible={setIsQueueVisible}/>
@@ -79,10 +100,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  topButtons: {
+    flexDirection: 'row',
+    position: 'relative',
+    width: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+  },
   minimizeButton: {
-    position: "absolute",
-    top: 20,
-    left: 20,
     borderRadius: 50,
     borderColor: "black",
     elevation: 5,

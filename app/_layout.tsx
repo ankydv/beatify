@@ -10,6 +10,7 @@ import store from '@/state/store';
 import { LightTheme } from '@/theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { Provider } from 'react-redux';
+import EventListeners from './EventListeners'
 TrackPlayer.registerPlaybackService(() => require('./service'));
 
 export {
@@ -59,6 +60,7 @@ function RootLayoutNav() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="player" options={{ headerShown: false }} />
         </Stack>
+        <EventListeners />
       </ThemeProvider>
     </Provider>
   );

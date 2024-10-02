@@ -13,6 +13,7 @@ import TrackPlayer, {
 } from "react-native-track-player";
 import { useDispatch, useSelector } from "react-redux";
 import { playNextTrack, playPrevTrack } from "@/state/slices/audio.slice.js"
+import BubbleIcon from "../../components/BubbleIcon";
 
 const Main = ({setIsQueueVisible}) => {
   const progress = useProgress();
@@ -72,16 +73,18 @@ const Main = ({setIsQueueVisible}) => {
       </View>
       <View style={styles.controlsContainer}>
         <View style={styles.infoContainer}>
-          <View styele={styles.togglesContainer}>
+          <View style={styles.togglesContainer}>
             {lyrics && (
               <LyricsToggleButton
                 isLyricsVisible={isLyricsVisible}
                 onToggle={toggleLyricsVisibility}
               />
-            )}
+            )
+              }
           </View>
-          <Text style={[styles.title, styles.shadowText]}>{md.getTitle()}</Text>
+          <Text numberOfLines={1} style={[styles.title, styles.shadowText]}>{md.getTitle()}</Text>
           <Text
+            numberOfLines={1} 
             style={[styles.artist, styles.shadowText, { textShadowRadius: 1 }]}
           >
             {md.getArtists()}
@@ -104,46 +107,25 @@ const Main = ({setIsQueueVisible}) => {
         </View>
         <View style={styles.controls}>
           <TouchableOpacity onPress={handlePrev}>
-            <MaterialIcons name="skip-previous" size={40} color="white" />
+            <MaterialIcons name="skip-previous" size={35} color="white" />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={{ borderWidth: 0, borderRadius: 50, elevation: 10 }}
-            activeOpacity={0.9}
-            onPress={handleTogglePlayback}
-          >
-            <MaterialIcons
-              style={{ padding: 0 }}
-              name={`${
-                playback.state == State.Playing ? "pause" : "play"
-              }-circle-filled`}
-              size={60}
-              color="white"
-            />
-          </TouchableOpacity>
+          <BubbleIcon name={playback.state == State.Playing ? "pause" : 'play-arrow'} size={45} onPress={handleTogglePlayback} />
           <TouchableOpacity onPress={handleNext}>
-            <MaterialIcons name="skip-next" size={40} color="white" />
+            <MaterialIcons name="skip-next" size={35} color="white" />
           </TouchableOpacity>
         </View>
-        <View style={styles.controls}>
+        <View style={[styles.controls, {marginTop: 10}]}>
           {/* Share Button */}
-          <TouchableOpacity>
-            <MaterialIcons name="share" size={30} color="white" />
-          </TouchableOpacity>
+          <BubbleIcon name={'share'} />
 
           {/* Sleep Timer Button */}
-          <TouchableOpacity>
-            <MaterialIcons name="timer" size={30} color="white" />
-          </TouchableOpacity>
+          <BubbleIcon name={'timer'} />
 
           {/* Queue Button */}
-          <TouchableOpacity onPress={() => setIsQueueVisible(true)}>
-            <MaterialIcons name="queue-music" size={30} color="white" />
-          </TouchableOpacity>
+          <BubbleIcon name={'queue-music'} onPress={() => setIsQueueVisible(true)}/>
 
           {/* Menu Button */}
-          <TouchableOpacity>
-            <MaterialIcons name="more-vert" size={30} color="white" />
-          </TouchableOpacity>
+          <BubbleIcon name={'more-horiz'} />
         </View>
       </View>
     </>
@@ -152,7 +134,7 @@ const Main = ({setIsQueueVisible}) => {
 
 const styles = StyleSheet.create({
   albumArtContainer: {
-    flex: 3,
+    flex: 1,
     justifyContent: "center",
   },
   albumArtWrapper: {
@@ -166,23 +148,26 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   controlsContainer: {
-    flex: 2,
+    height: 350,
     alignItems: "center",
     width: "100%",
+    paddingVertical: 20,
   },
   infoContainer: {
     width: "100%",
-    padding: 20,
+    paddingHorizontal: 20,
   },
   togglesContainer: {
     flexDirection: "row",
     justifyContent: "flex-start",
+    height: 29,
   },
   title: {
     fontSize: 20,
     fontWeight: "bold",
-    marginVertical: 10,
+    marginVertical: 5,
     color: "white",
+    fontFamily: 'Helvetica Neue Bold',
   },
   artist: {
     fontSize: 16,
@@ -190,8 +175,8 @@ const styles = StyleSheet.create({
     color: "white",
   },
   slider: {
-    width: "95%",
-    height: 40,
+    width: "100%",
+    height: 20,
   },
   shadowText: {
     textShadowColor: "black",
@@ -200,17 +185,20 @@ const styles = StyleSheet.create({
   controls: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    width: "60%",
+    justifyContent: "space-around",
+    width: "80%",
+    maxWidth: 350,
+    paddingTop: 20,
   },
   timeContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    width: "90%",
+    width: "100%",
     opacity: 0.6,
+    paddingHorizontal: 20,
   },
   timeText: {
-    fontSize: 14,
+    fontSize: 12,
     color: "white",
   },
 });
