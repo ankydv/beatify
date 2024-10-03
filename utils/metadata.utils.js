@@ -8,17 +8,17 @@ class Metadata {
 
   // Example method to get the title of the track
   getTitle() {
-    return this.metadata.videoDetails.title || "Unknown Title";
+    return this.metadata?.videoDetails?.title || "Unknown Title";
   }
 
   // Example method to get the artists as a formatted string
   getArtists() {
-    return this.metadata.videoDetails.author || "Unknown Artist";
+    return this.metadata?.videoDetails?.author || "Unknown Artist";
   }
 
   // Example method to get the album name
   getAlbum() {
-    return this.metadata.album || "Unknown Album";
+    return this.metadata?.album || "Unknown Album";
   }
 
   // Example method to get the duration in minutes and seconds
@@ -49,7 +49,7 @@ class Metadata {
   }
 
   getThumbUrl(size) {
-    if (this.metadata === null) return "metadata cannot be null";
+    if (!(this.metadata?.videoDetails?.thumbnail?.thumbnails)) return "metadata cannot be null";
     thumbnails = this.metadata.videoDetails.thumbnail.thumbnails.sort();
     len = thumbnails.length;
     switch (size) {

@@ -1,4 +1,4 @@
-import TrackPlayer from 'react-native-track-player';
+import TrackPlayer, { State } from 'react-native-track-player';
 import store from "@/state/store";
 import { playNextTrack, playPrevTrack } from "@/state/slices/audio.slice.js";
 
@@ -16,4 +16,9 @@ module.exports = async function () {
   TrackPlayer.addEventListener('remote-next', handleNext);
   TrackPlayer.addEventListener('remote-previous', handlePrevious);
   TrackPlayer.addEventListener('remote-seek', ({ position }) => TrackPlayer.seekTo(position));
+  TrackPlayer.addEventListener('playback-state', ({ state }) => {
+    if (state === State.Ended) {
+      handleNext();
+    }
+  });
 };

@@ -53,7 +53,7 @@ const Player = () => {
 
   return (
     <ImageBackground
-      source={{ uri: md.getThumbUrl("large") }}
+      source={{ uri: md.getThumbUrl("mini") }}
       style={styles.container}
       resizeMode="cover"
       onLoadEnd={() => setImageLoaded(true)}

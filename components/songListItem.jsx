@@ -1,8 +1,10 @@
 import React from "react";
-import { Image, Pressable, StyleSheet, View } from "react-native";
+import { Dimensions, Image, Pressable, StyleSheet, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Text } from "./Themed";
 import { useTheme } from "@react-navigation/native";
+
+const textWidth = Dimensions.get('window').width - 100;
 
 const MusicListItem = ({onPress, imageUrl, title, subtitle, onMorePress, isQueue }) => {
 
@@ -45,9 +47,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: "bold",
+    maxWidth: textWidth,
   },
   subtitle: {
     fontSize: 14,
+    maxWidth: textWidth,
   },
   moreButton: {
     padding: 5,
