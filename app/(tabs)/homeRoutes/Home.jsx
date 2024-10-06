@@ -4,6 +4,7 @@ import { getHome } from '@/services/explore.service';
 import PlaylistRow from '@/components/PlaylistRow';
 import { Text } from '@/components/Themed';
 import QuickPicks from '@/components/QuickPicks';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const HomeScreen = () => {
   const [data, setData] = useState(null);
@@ -27,10 +28,10 @@ const HomeScreen = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0000ff" />
         <Text>Loading...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -43,7 +44,7 @@ const HomeScreen = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScrollView>
         {data?.map((section, index) => (
           <View key={index} style={styles.section}>
@@ -56,7 +57,7 @@ const HomeScreen = () => {
           </View>
         ))}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 

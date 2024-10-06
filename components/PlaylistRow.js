@@ -14,8 +14,8 @@ const PlaylistRow = ({ items, title }) => {
   const isArtist = title.includes('artist');
   const handlePress = (item) => {
     const isVideo = item.videoId;
-    const isAlbum = title.includes('album');
-    const isPlaylist = item.playlistId
+    const isAlbum = title.includes('album') || Boolean(item.browseId);
+    const isPlaylist = Boolean(item.playlistId)
     if(isVideo){
       dispatch(loadAndPlayTrack({track: item}))
     }
@@ -26,6 +26,9 @@ const PlaylistRow = ({ items, title }) => {
         pathname: "/(tabs)/homeRoutes/Album",
         params: { id: isPlaylist?item.playlistId:item.browseId, isPlaylist: isPlaylist }, 
       });
+    }
+    else{
+      console.log('not implemented')
     }
   }
   return (
