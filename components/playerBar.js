@@ -15,6 +15,7 @@ const PlayerBar = () => {
   const { currentTrack } = useSelector((state) => state.audio);
   const track = new Track(currentTrack);
   const [artist, setArtist] = useState();
+  const [thumbUrl, setThumbUrl] = useState();
 
   const playback = usePlaybackState();
   const theme = useTheme();
@@ -35,14 +36,17 @@ const PlayerBar = () => {
 
   useEffect(() => {
     const getArtist = () => {
-      TrackPlayer.getActiveTrack().then(res=>setArtist(res.artist))
+      TrackPlayer.getActiveTrack().then(res=>{
+        setArtist(res.artist)
+        setThumbUrl(res.artwork)
+      })
     }
     getArtist();
   })
 
   return (
     <TouchableOpacity onPress={handlePress} style={[styles.container, {borderColor: theme.colors.border}]}>
-      <Image source={{ uri: track.getThumbUrl("mini") }} style={styles.image} />
+      <Image source={{ uri: track.getThumbUrl("mini") || thumbUrl}} style={styles.image} />
       <View style={styles.textContainer}>
         <Text style={[styles.title]} numberOfLines={1}>
           {track.title}

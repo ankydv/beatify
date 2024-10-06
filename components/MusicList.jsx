@@ -16,6 +16,15 @@ const MusicList = ({ dataset, isQueue }) => {
     return artists.map((artist) => artist.name).join(" ");
   };
 
+  const getThumbUrl = (song) => {
+    if(song.thumbnail){
+      return song.thumbnail[0].url;
+    }
+    else if(song.thumbnails)
+        return song.thumbnails[0].url
+    else return null;
+  }
+
   return (
     <View>
       {dataset?.map((song, index) => (
@@ -23,11 +32,10 @@ const MusicList = ({ dataset, isQueue }) => {
           key={index}
           title={song.title || song.name}
           subtitle={formatArtists(song.artists)}
-          imageUrl={
-            song.thumbnails ? song.thumbnails[0].url : song.thumbnail[0].url
-          }
+          imageUrl={getThumbUrl(song)}
           onPress={() => handlePress(song)}
           isQueue={isQueue}
+          index = {index}
         />
       ))}
     </View>

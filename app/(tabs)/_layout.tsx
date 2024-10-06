@@ -33,7 +33,7 @@ export default function TabLayout() {
       }}
       sceneContainerStyle={{marginBottom: currentTrack ? 60 : 0}}>
       <Tabs.Screen
-        name="index"
+        name="homeRoutes"
         options={{
           title: 'home',
           tabBarIcon: ({ color }) => <AntDesign name="home" color={color} size={24} />,
@@ -57,6 +57,12 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <MaterialIcons name="library-music" color={color} size={24} />,
           tabBarShowLabel: false,
           headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="index"
+        options={{
+          href: null,  // This prevents the index route from appearing as a tab
         }}
       />
     </Tabs>

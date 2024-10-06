@@ -49,7 +49,7 @@ const HomeScreen = () => {
           <View key={index} style={styles.section}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
             {section.title !== 'Quick picks' ? (
-              <PlaylistRow items={section.contents} />
+              <PlaylistRow items={section.contents} title={section.title.toLowerCase()}/>
             ) : (
               <QuickPicks data={section.contents} />
             )}

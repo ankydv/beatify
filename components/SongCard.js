@@ -4,12 +4,12 @@ import { Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { Text } from './Themed';
 
-const SongCard = ({ item }) => {
+const SongCard = ({ item, onPress }) => {
     const artists = 'test artist'
     const dispatch = useDispatch();
   return (
     <>{item && 
-    <TouchableOpacity style={styles.card} onPress={() => dispatch(loadAndPlayTrack(item))}>
+    <TouchableOpacity style={styles.card} onPress={onPress}>
       <Image source={{ uri: item.thumbnails[0].url }} style={styles.image} />
       <Text style={styles.title} numberOfLines={1}>
         {item.title}
