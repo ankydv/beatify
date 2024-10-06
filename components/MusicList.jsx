@@ -4,12 +4,14 @@ import MusicListItem from "./songListItem";
 import { useDispatch } from "react-redux";
 import { loadAndPlayTrack } from "@/state/slices/audio.slice";
 
-const MusicList = ({ dataset, isQueue }) => {
+const MusicList = ({ dataset, isQueue, onPress }) => {
   const dispatch = useDispatch();
 
-  const handlePress = (song) => {
-    dispatch(loadAndPlayTrack({ track: song, isQueueTrack: isQueue }));
-  };
+  if(!onPress){
+    onPress = (song) => {
+      dispatch(loadAndPlayTrack({ track: song, isQueueTrack: isQueue }));
+    }
+}
 
   const formatArtists = (artists) => {
     if (!artists || artists.length === 0) return "";
@@ -33,7 +35,7 @@ const MusicList = ({ dataset, isQueue }) => {
           title={song.title || song.name}
           subtitle={formatArtists(song.artists)}
           imageUrl={getThumbUrl(song)}
-          onPress={() => handlePress(song)}
+          onPress={() => onPress(song)}
           isQueue={isQueue}
           index = {index}
         />

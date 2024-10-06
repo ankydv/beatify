@@ -11,7 +11,7 @@ import BlurImageBg from "../../../components/BlurImageBg";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const Album = () => {
-  const { id } = useLocalSearchParams();
+  const { id, isPlaylist } = useLocalSearchParams();
   const [album, setAlbum] = useState();
   const theme = useTheme();
   const [scrollY, setScrollY] = useState(new Animated.Value(0));
@@ -19,7 +19,7 @@ const Album = () => {
   const navigation = useNavigation();
 
   useEffect(() => {
-    getAlbum(id).then((res) => setAlbum(res));
+    getAlbum(id, isPlaylist).then((res) => setAlbum(res));
   }, [id]);
 
   useEffect(() => {
