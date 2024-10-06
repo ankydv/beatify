@@ -6,13 +6,13 @@ import { useTheme } from "@react-navigation/native";
 
 const textWidth = Dimensions.get('window').width - 100;
 
-const MusicListItem = ({onPress, imageUrl, title, subtitle, onMorePress, isQueue }) => {
+const MusicListItem = ({onPress, imageUrl, title, subtitle, onMorePress, isQueue, index }) => {
 
   const theme = useTheme();
 
   return (
     <Pressable onPress={onPress} style={[styles.container]}>
-      <Image source={{ uri: imageUrl }} style={styles.image} />
+      {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.image} /> : <Text style={styles.serialNumber}>{index+1}</Text>}
       <View style={styles.textContainer}>
         <Text style={[styles.title]} numberOfLines={1}>
           {title}
@@ -40,6 +40,10 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 5,
     marginRight: 15,
+  },
+  serialNumber: {
+    padding: 10,
+    fontSize: 15,
   },
   textContainer: {
     flex: 1,

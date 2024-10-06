@@ -3,6 +3,11 @@ import { StyleSheet, TouchableWithoutFeedback, View } from "react-native";
 
 const BubbleButton = ({ onPress, style, children }) => {
   const [isPressed, setIsPressed] = useState(false);
+  if(!onPress){
+    onPress = () => {
+      console.log('To be implemented')
+    }
+  }
 
   return (
     <TouchableWithoutFeedback
