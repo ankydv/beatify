@@ -1,6 +1,8 @@
 import axios from 'axios';
 import querystring from 'querystring';
 import { getCachedMetadata, cacheMetadata } from '@/services/cache.service'
+import { tokenManager } from '@/utils/token.utils';
+import { refreshToken } from './auth.service';
 
 const apiKey = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 const baseUrl = 'https://www.youtube.com/youtubei/v1';
@@ -11,7 +13,7 @@ const baseParams = {
 };
 
 const header = {
-  'User-Agent': 'com.google.android.apps.youtube.music/'
+  'User-Agent': 'com.google.android.apps.youtube.music/',
 };
 
 const context = {
@@ -45,8 +47,11 @@ const executeRequest = async (url, method = 'GET', headers = {}, data = null) =>
 
 const callApi = async (endpoint, query, data) => {
   const endpointUrl = `${endpoint}?${querystring.stringify(query)}`;
+  await refreshToken();
+  const access_token = await tokenManager.getAccessToken();
   const headers = {
     'Content-Type': 'application/json',
+    'Authorization': `Bearer ${access_token}`,
     ...header
   };
   
