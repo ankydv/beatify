@@ -11,6 +11,7 @@ import { LightTheme } from '@/theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { Provider } from 'react-redux';
 import EventListeners from './EventListeners'
+import GlobalModal from '../components/GlobalModal';
 TrackPlayer.registerPlaybackService(() => require('./service'));
 
 export {
@@ -22,6 +23,9 @@ export const unstable_settings = {
   // Ensure that reloading on `/modal` keeps a back button present.
   initialRouteName: '(tabs)',
 };
+
+
+
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -61,6 +65,7 @@ function RootLayoutNav() {
           <Stack.Screen name="player" options={{ headerShown: false }} />
         </Stack>
         <EventListeners />
+        <GlobalModal />
       </ThemeProvider>
     </Provider>
   );

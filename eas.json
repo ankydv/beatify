@@ -8,7 +8,8 @@
         "distribution": "internal",
         "env": {
           "EXPO_PUBLIC_API_URL": "https://test-server-three-smoky.vercel.app",
-          "EXPO_PUBLIC_API_URL2": "https://euphonic.onrender.com"
+          "EXPO_PUBLIC_API_URL2": "https://euphonic.onrender.com",
+          "ANDROID_CLIENT_ID":"305437345954-6i31ktasfnb0858t9e3cp7907aqtcco7.apps.googleusercontent.com"
         }
       },
       "production": {}
