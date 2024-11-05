@@ -1,4 +1,5 @@
 import { tokenManager } from "@/utils/token.utils";
+import { removeUser } from "@/utils/user.utils";
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import * as SecureStore from "expo-secure-store";
 
@@ -29,6 +30,7 @@ const authSlice = createSlice({
     logout: (state) => {
       SecureStore.setItemAsync("isLoggedIn", "false");
       tokenManager.clearTokens();
+      removeUser();
       state.isLoggedIn = false;
     },
   },

@@ -3,6 +3,7 @@ import { tokenManager } from '../utils/token.utils';
 
 export const refreshToken = async (force = false) => {
   const CLIENT_ID = process.env.EXPO_PUBLIC_CLIENT_ID;
+  const CLIENT_SECRET = process.env.EXPO_PUBLIC_CLIENT_SECRET;
   try {
     const refreshToken = await tokenManager.getRefreshToken();
     const expiresAt = await tokenManager.getExpiry();
@@ -23,6 +24,7 @@ export const refreshToken = async (force = false) => {
     // Set up URL-encoded data
     const data = new URLSearchParams({
       client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
     });
