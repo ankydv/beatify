@@ -3,11 +3,14 @@ import React from 'react';
 import { Modal, View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { closeModal } from '../state/slices/modal.slice';
+import { useTheme } from '@react-navigation/native';
 
 const GlobalModal = () => {
   const isVisible = useSelector((state) => state.modal.isVisible);
   const content = useSelector((state) => state.modal.content);
   const dispatch = useDispatch();
+
+  const { colors, dark } = useTheme();
 
   return (
     <Modal
@@ -16,14 +19,14 @@ const GlobalModal = () => {
       animationType="slide"
       onRequestClose={() => dispatch(closeModal())}
     >
-      <View style={styles.modalBackground}>
-        <View style={styles.modalContainer}>
+      <View style={[styles.modalBackground, {backgroundColor: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.5)'}]}>
+        <View style={[styles.modalContainer, {backgroundColor: colors.background}]}>
           {/* Close Button */}
           <View style={styles.closeButton}>
             <TouchableOpacity
                 onPress={() => dispatch(closeModal())}
             >
-                <Text style={styles.closeButtonText}>✕</Text>
+                <Text style={[styles.closeButtonText, {color: colors.text}]}>✕</Text>
             </TouchableOpacity>
           </View>
           
@@ -40,13 +43,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContainer: {
     width: '100%',
     padding:20,
     paddingTop:0,
-    backgroundColor: 'white',
     borderRadius: 10,
     position: 'relative',
   },
