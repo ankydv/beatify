@@ -13,15 +13,24 @@ const baseParams = {
 };
 
 const header = {
-  'User-Agent': 'com.google.android.apps.youtube.music/',
+  'User-Agent': 'com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X;)',
+  'X-YouTube-Client-Name': 5,
+  'X-YouTube-Client-Version': '19.45.4',
 };
 
 const context = {
-  client: {
-    clientName: 'ANDROID_MUSIC',
-    clientVersion: '5.16.51',
-    androidSdkVersion: 30
-  }
+  "client": {
+      "clientName": "IOS",
+      "clientVersion": "19.45.4",
+      "deviceMake": "Apple",
+      "deviceModel": "iPhone16,2",
+      "userAgent": "com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X;)",
+      "osName": "iPhone",
+      "osVersion": "18.1.0.22B83",
+      "hl": "en",
+      "timeZone": "Asia/Kolkata",
+      "utcOffsetMinutes": 330
+    }
 };
 
 const baseData = {
@@ -45,15 +54,22 @@ const executeRequest = async (url, method = 'GET', headers = {}, data = null) =>
   return response.data;
 };
 
-const callApi = async (endpoint, query, data) => {
+const callApi = async (endpoint, query, data, useAuth = false) => {
   const endpointUrl = `${endpoint}?${querystring.stringify(query)}`;
-  await refreshToken();
-  const access_token = await tokenManager.getAccessToken();
+  if(useAuth){
+    await refreshToken();
+    const access_token = await tokenManager.getAccessToken();
+  }
   const headers = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${access_token}`,
     ...header
   };
+
+  if(useAuth)
+  headers = {
+    ...headers, 
+    'Authorization': `Bearer ${access_token}`,
+  }
   
   const response = await executeRequest(endpointUrl, 'POST', headers, data);
   return response;
