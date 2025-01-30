@@ -51,6 +51,7 @@ const YtAuth = () => {
     try {
       const tokenResponse = await getBearerToken(deviceCode);
       // You can now handle tokenResponse, for example, saving it or navigating to another screen
+      console.log(tokenResponse)
       const { access_token, expires_in, refresh_token } = tokenResponse;
       const accessToken = access_token;
       const expiresIn = expires_in;
