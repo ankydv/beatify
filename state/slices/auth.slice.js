@@ -5,10 +5,10 @@ import * as SecureStore from "expo-secure-store";
 
 export const authenticateUser = createAsyncThunk(
   "auth/authenticateUser",
-  async ({ accessToken, refreshToken, expiresIn }, { dispatch }) => {
+  async ({ accessToken, refreshToken, authToken, expiresIn }, { dispatch }) => {
     const currentTime = Math.floor(Date.now() / 1000);
     // Save tokens using tokenManager
-    await tokenManager.saveTokens(accessToken, refreshToken, expiresIn + currentTime);
+    await tokenManager.saveTokens(accessToken, refreshToken, authToken, expiresIn + currentTime);
     // Set isLoggedIn status in SecureStore
     await SecureStore.setItemAsync("isLoggedIn", "true");
     dispatch(login());

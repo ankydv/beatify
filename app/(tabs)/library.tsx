@@ -2,7 +2,7 @@ import { Button, Image, StyleSheet } from "react-native";
 import { Text, View } from "@/components/Themed";
 import { openModal } from "@/state/slices/modal.slice";
 import { useDispatch, useSelector } from "react-redux";
-import YtAuth from "@/components/YtAuth";
+import SignInWithYouTube from "@/components/SignInWithYouTube";
 import { logout } from "@/state/slices/auth.slice";
 import useUser from "@/hooks/user.hook";
 import { useEffect } from "react";
@@ -23,7 +23,7 @@ export default function TabTwoScreen() {
       dispatch(logout());
       return;
     }
-    dispatch(openModal(<YtAuth />));
+    dispatch(openModal(<SignInWithYouTube />));
   };
 
   if(!isLoggedIn){

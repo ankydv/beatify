@@ -1,4 +1,4 @@
 import createAxiosInstance from './createAxiosInstance';
 
-const ytApi = createAxiosInstance('https://www.googleapis.com/oauth2/v1');
-export default ytApi;
+const authApi = createAxiosInstance(`${process.env.EXPO_PUBLIC_AUTH_URL}/api/auth`);
+export default authApi;

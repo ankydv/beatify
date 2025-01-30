@@ -6,6 +6,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import { authenticateUser } from "@/state/slices/auth.slice";
 import { useDispatch, useSelector } from "react-redux";
+import { getAuthToken } from "@/services/authToken.service"
 
 const SignInWithYouTube = () => {
   const CLIENT_ID = process.env.EXPO_PUBLIC_CLIENT_ID;
@@ -14,7 +15,8 @@ const SignInWithYouTube = () => {
   WebBrowser.maybeCompleteAuthSession();
   const config = {
     androidClientId: CLIENT_ID,
-    scopes: ["https://www.googleapis.com/auth/youtube"],
+    scopes: ["profile", "email", "https://www.googleapis.com/auth/youtube.readonly"],
+
   };
   const [request, response, promptAsync] = Google.useAuthRequest(config);
 
@@ -26,14 +28,20 @@ const SignInWithYouTube = () => {
   };
 
   useEffect(() => {
-    if (response?.type === "success") {
-      const { authentication } = response;
-      const { accessToken, expiresIn, refreshToken } = authentication;
-      // console.log(accessToken)
-      dispatch(authenticateUser({accessToken, refreshToken, expiresIn}));
-    } else {
-      console.log("Response:", response);
+    const login = async () => {
+      if (response?.type === "success") {
+        const { authentication } = response;
+        const { accessToken, expiresIn, refreshToken } = authentication;
+        // console.log(accessToken)
+        const authToken = await getAuthToken(); 
+        console.log(accessToken)
+        console.log(refreshToken)
+        dispatch(authenticateUser({accessToken, refreshToken, authToken, expiresIn}));
+      } else {
+        console.log("Response:", response);
+      }
     }
+    login();
   }, [response]);
 
   if(isLoggedIn){
