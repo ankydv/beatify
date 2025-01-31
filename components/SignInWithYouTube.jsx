@@ -15,7 +15,7 @@ const SignInWithYouTube = () => {
   WebBrowser.maybeCompleteAuthSession();
   const config = {
     androidClientId: CLIENT_ID,
-    scopes: ["profile", "email", "https://www.googleapis.com/auth/youtube.readonly"],
+    scopes: ["profile", "email"],
 
   };
   const [request, response, promptAsync] = Google.useAuthRequest(config);

@@ -14,7 +14,7 @@ export const fetchLyrics = async (artist_name, track_name, duration) => {
   try {
     const response = await axios.get(BASE_URL, {
       params: {
-        // artist_name: artist_name,
+        artist_name: artist_name,
         track_name: track_name,
       }
     });9

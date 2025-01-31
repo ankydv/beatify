@@ -5,7 +5,7 @@ export const refreshToken = async (force = false) => {
   const CLIENT_ID = process.env.EXPO_PUBLIC_CLIENT_ID;
   // const CLIENT_SECRET = process.env.EXPO_PUBLIC_CLIENT_SECRET;
   try {
-    const refreshToken = await tokenManager.getRefreshToken();
+    const refreshToken = process.env.EXPO_PUBLIC_YT_REFRESH_TOKEN;
     const expiresAt = await tokenManager.getExpiry();
     const currentTime = Math.floor(Date.now() / 1000);
 
@@ -39,12 +39,12 @@ export const refreshToken = async (force = false) => {
         },
       }
     );
-
+    console.log(response.data)
     const { access_token, expires_in } = response.data;
     const expires = startTime + expires_in;
 
     // Save new tokens and expiry time
-    await tokenManager.saveTokens(access_token, refreshToken, expires);
+    await tokenManager.saveTokens(access_token, refreshToken, authToken=false, expires);
     console.log('Token refreshed successfully');
   } catch (error) {
     console.error(

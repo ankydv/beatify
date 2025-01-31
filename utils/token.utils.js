@@ -5,7 +5,8 @@ export const tokenManager = {
     
     await SecureStore.setItemAsync('accessToken', accessToken);
     await SecureStore.setItemAsync('refreshToken', refreshToken);
-    await SecureStore.setItemAsync('authToken', authToken);
+    if(authToken)
+      await SecureStore.setItemAsync('authToken', authToken);
     await SecureStore.setItemAsync('expiresAt', expiresAt.toString());
   },
 
