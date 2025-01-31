@@ -45,3 +45,7 @@ expo-env.d.ts
 
 #sample files
 sample/
+
+android/
+%programData%/
+.vscode/
