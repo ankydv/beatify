@@ -63,6 +63,7 @@ function RootLayoutNav() {
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="player" options={{ headerShown: false }} />
+          <Stack.Screen name="voiceRoom" options={{ headerShown: false }} />
         </Stack>
         <EventListeners />
         <GlobalModal />

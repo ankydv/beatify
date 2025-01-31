@@ -3,6 +3,7 @@ import { useNavigation } from "expo-router";
 import { useEffect } from "react";
 import { Linking } from "react-native";
 import { useDispatch } from "react-redux";
+import { initializeSocket } from '@/configs/socket'
 
 const EventListeners = () => {
   const navigation = useNavigation();
@@ -16,6 +17,22 @@ const EventListeners = () => {
       }
     };
     Linking.addEventListener('url', handleUrl);
+
+    const setupSocket = async () => {
+      await initializeSocket();
+
+      socket.on('connect', () => {
+        console.log('Socket connected:', socket.id);
+      });
+
+      socket.on('disconnect', () => {
+        console.log('Socket disconnected');
+      });
+    };
+
+    setupSocket();
+
+
   }, []);
 
   const dispatch = useDispatch();
