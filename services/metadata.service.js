@@ -20,26 +20,31 @@ const header = {
 
 const context = {
   "client": {
-      "clientName": "IOS",
-      "clientVersion": "19.45.4",
-      "deviceMake": "Apple",
-      "deviceModel": "iPhone16,2",
-      "userAgent": "com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X;)",
-      "osName": "iPhone",
-      "osVersion": "18.1.0.22B83",
+      "clientName": "ANDROID_MUSIC",
+      "clientVersion": "7.25.52",
+      "deviceMake": "Samsung",
+      "deviceModel": "X910",
+      "userAgent": "com.google.android.apps.youtube.music/",
+      "osName": "android",
+      "osVersion": "12.0",
       "hl": "en",
       "timeZone": "Asia/Kolkata",
       "utcOffsetMinutes": 330
     }
 };
 
+const playbackContext = {
+    "contentPlaybackContext": {
+      "html5Preference": "HTML5_PREF_WANTS",
+    }
+}
+
 const baseData = {
-  context
+  context, playbackContext
 };
 
 const executeRequest = async (url, method = 'GET', headers = {}, data = null) => {
   const baseHeaders = {
-    'User-Agent': 'Mozilla/5.0',
     'accept-language': 'en-US,en',
     ...headers
   };
@@ -54,23 +59,24 @@ const executeRequest = async (url, method = 'GET', headers = {}, data = null) =>
   return response.data;
 };
 
-const callApi = async (endpoint, query, data, useAuth = false) => {
+const callApi = async (endpoint, query, data, useAuth = true) => {
   const endpointUrl = `${endpoint}?${querystring.stringify(query)}`;
-  if(useAuth){
-    await refreshToken();
-    const access_token = await tokenManager.getAccessToken();
-  }
-  const headers = {
+  let access_token;
+
+  let headers = {
     'Content-Type': 'application/json',
     ...header
   };
 
-  if(useAuth)
-  headers = {
-    ...headers, 
-    'Authorization': `Bearer ${access_token}`,
+  if(useAuth){
+    await refreshToken();
+    access_token = await tokenManager.getAccessToken();
+    headers = {
+      ...headers, 
+      'Authorization': `Bearer ${access_token}`,
+    }
   }
-  
+
   const response = await executeRequest(endpointUrl, 'POST', headers, data);
   return response;
 };
