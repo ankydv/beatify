@@ -6,7 +6,7 @@ import { Pressable } from 'react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
-import { AntDesign, MaterialIcons } from '@expo/vector-icons';
+import { AntDesign, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import PlayerBar from '@/components/playerBar'
 import { useSelector } from 'react-redux';
 
@@ -63,6 +63,15 @@ export default function TabLayout() {
         name="index"
         options={{
           href: null,  // This prevents the index route from appearing as a tab
+        }}
+      />
+      <Tabs.Screen
+        name="party/index"
+        options={{
+          title: 'party',
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="party-popper" size={24} color={color} />,
+          tabBarShowLabel: false,
+          headerShown: false,
         }}
       />
     </Tabs>
