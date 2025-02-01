@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { StyleSheet, TouchableWithoutFeedback, View } from "react-native";
+import { Alert, StyleSheet, TouchableWithoutFeedback, View } from "react-native";
+import { showUnimplementedFeatureAlert } from "../utils/alerts.utils";
 
 const BubbleButton = ({ onPress, style, children }) => {
   const [isPressed, setIsPressed] = useState(false);
   if(!onPress){
     onPress = () => {
-      console.log('To be implemented')
+      showUnimplementedFeatureAlert();
     }
   }
 
