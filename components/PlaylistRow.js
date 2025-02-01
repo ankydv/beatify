@@ -1,8 +1,9 @@
 import React from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { Alert, FlatList, StyleSheet, View } from 'react-native';
 import SongCard from './SongCard';
 import { useNavigation, useRouter } from 'expo-router';
 import { loadAndPlayTrack } from '@/state/slices/audio.slice';
+import { showUnimplementedFeatureAlert } from "../utils/alerts.utils";
 import { useDispatch } from 'react-redux';
 
 const PlaylistRow = ({ items, title }) => {
@@ -20,7 +21,7 @@ const PlaylistRow = ({ items, title }) => {
       dispatch(loadAndPlayTrack({track: item}))
     }
     else if(isArtist)
-      console.log('artist')
+      showUnimplementedFeatureAlert();
     else if(isAlbum || isPlaylist){
       router.push({
         pathname: "/(tabs)/homeRoutes/Album",
@@ -28,7 +29,7 @@ const PlaylistRow = ({ items, title }) => {
       });
     }
     else{
-      console.log('not implemented')
+      showUnimplementedFeatureAlert();
     }
   }
   return (

@@ -5,6 +5,7 @@ import { Text, View } from "./Themed";
 import { useDispatch } from "react-redux";
 import { loadAndPlayTrack } from "@/state/slices/audio.slice";
 import { useRouter } from "expo-router";
+import { showUnimplementedFeatureAlert } from "@/utils/alerts.utils";
 
 const SearchResults = ({ results }) => {
 
@@ -25,7 +26,7 @@ const SearchResults = ({ results }) => {
       });
     }
     else{
-      console.log('not implemented')
+      showUnimplementedFeatureAlert();
     }
   }
 
