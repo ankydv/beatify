@@ -1,5 +1,5 @@
 import axios from 'axios';
-import querystring from 'querystring';
+import qs from 'qs';
 import { getCachedMetadata, cacheMetadata } from '@/services/cache.service'
 import { tokenManager } from '@/utils/token.utils';
 import { refreshToken } from './auth.service';
@@ -60,7 +60,7 @@ const executeRequest = async (url, method = 'GET', headers = {}, data = null) =>
 };
 
 const callApi = async (endpoint, query, data, useAuth = true) => {
-  const endpointUrl = `${endpoint}?${querystring.stringify(query)}`;
+  const endpointUrl = `${endpoint}?${qs.stringify(query)}`;
   let access_token;
 
   let headers = {

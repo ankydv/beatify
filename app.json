@@ -28,7 +28,17 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24
+          }
+        }
+      ],
+      "expo-font",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
@@ -40,6 +50,12 @@
       "eas": {
         "projectId": "9ea0b37a-e3da-42f8-9c23-c9566efbbd5e"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9ea0b37a-e3da-42f8-9c23-c9566efbbd5e"
     }
   }
 }
