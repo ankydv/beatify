@@ -6,6 +6,7 @@ import SignInWithYouTube from "@/components/SignInWithYouTube";
 import { logout } from "@/state/slices/auth.slice";
 import useUser from "@/hooks/user.hook";
 import { useEffect } from "react";
+import { useNavigation } from "expo-router";
 
 export default function TabTwoScreen() {
   const dispatch = useDispatch();
@@ -13,6 +14,7 @@ export default function TabTwoScreen() {
   const { user } = useUser();
   const name = user?.name;
   const picture = user?.picture;
+  const navigation = useNavigation();
 
   useEffect(() => {
     console.log(user);
@@ -30,6 +32,7 @@ export default function TabTwoScreen() {
     return(
       <View style={styles.container}>
         <Button title="Login" onPress={test}></Button>
+        <Button title="Update" onPress={() => navigation.navigate('updater')}></Button>
       </View>
     )
   }

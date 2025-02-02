@@ -4,9 +4,13 @@ import { useEffect } from "react";
 import { Linking } from "react-native";
 import { useDispatch } from "react-redux";
 import { initializeSocket } from '@/configs/socket'
+import useAutoUpdate from '@/services/ota.service';
 
 const EventListeners = () => {
   const navigation = useNavigation();
+
+  // useAutoUpdate();
+
   useEffect(() => {
     const handleUrl = (event) => {
       const { url } = event;
