@@ -1,22 +1,33 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { TextInput, StyleSheet, Pressable } from "react-native";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { View } from "./Themed";
 import { useTheme } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 
 const SearchBar = ({ onSubmit }) => {
   const [searchText, setSearchText] = useState("");
   const theme = useTheme();
-
+  const inputRef = useRef(null);
+  const [submitted, setSubmitted] = useState(false);
   const handleSearchSubmit = () => {
     if (searchText.trim()) {
       onSubmit(searchText);
+      setSubmitted(true);
     }
   };
 
   const clearSearch = () => {
     setSearchText("");
+    inputRef.current?.focus();
   };
+
+  useFocusEffect(() => {
+    requestAnimationFrame(() => {
+      if(!submitted)
+      inputRef.current?.focus();
+    });
+  });
 
   return (
     <View
@@ -35,6 +46,7 @@ const SearchBar = ({ onSubmit }) => {
         onSubmitEditing={handleSearchSubmit}
         placeholder="Search"
         placeholderTextColor={theme.colors.placeholder || "gray"} 
+        ref={inputRef}
         style={[
           styles.input,
           {

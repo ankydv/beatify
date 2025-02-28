@@ -12,7 +12,18 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { Provider } from 'react-redux';
 import EventListeners from './EventListeners'
 import GlobalModal from '../components/GlobalModal';
-TrackPlayer.registerPlaybackService(() => require('./service'));
+import { StatusBar } from 'expo-status-bar';
+
+declare global {
+  var trackPlayerServiceRegistered: boolean | undefined;
+}
+
+if (!global.trackPlayerServiceRegistered) {
+  TrackPlayer.registerPlaybackService(() => require('../services/track.service'));
+  global.trackPlayerServiceRegistered = true;
+}
+
+
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -59,6 +70,7 @@ function RootLayoutNav() {
 
   return (
     <Provider store={store}>
+      <StatusBar translucent />
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : LightTheme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

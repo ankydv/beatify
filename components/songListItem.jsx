@@ -14,10 +14,10 @@ const MusicListItem = ({onPress, imageUrl, title, subtitle, onMorePress, isQueue
     <Pressable onPress={onPress} style={[styles.container]}>
       {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.image} /> : <Text style={styles.serialNumber}>{index+1}</Text>}
       <View style={styles.textContainer}>
-        <Text style={[styles.title]} numberOfLines={1}>
+        <Text style={[styles.title, isQueue && {color: 'white'}]} numberOfLines={1}>
           {title}
         </Text>
-        <Text style={[styles.subtitle]} numberOfLines={1}>
+        <Text style={[styles.subtitle, isQueue && {color: 'white'}]} numberOfLines={1}>
           {subtitle}
         </Text>
       </View>
