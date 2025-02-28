@@ -1,8 +1,5 @@
 import axios from 'axios';
-import * as FileSystem from 'expo-file-system';
-// import { requestInstallUnknownAppsPermission } from '../utils/permissions.utils';
-import { Platform, Linking, Alert } from 'react-native';
-import * as Sharing from 'expo-sharing';
+import { Platform, Linking } from 'react-native';
 
 const GITHUB_API_URL = 'https://api.github.com/repos/ankydv/beatify/releases/latest';
 

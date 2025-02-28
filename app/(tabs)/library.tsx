@@ -31,7 +31,7 @@ export default function TabTwoScreen() {
   if(!isLoggedIn){
     return(
       <View style={styles.container}>
-        <Button title="Login" onPress={test}></Button>
+        <Button title="Login (coming soon)" disabled onPress={test}></Button>
         <Button title="Update" onPress={() => navigation.navigate('updater')}></Button>
       </View>
     )
@@ -55,6 +55,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    gap: 10,
   },
   title: {
     fontSize: 20,

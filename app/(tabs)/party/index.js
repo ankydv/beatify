@@ -31,9 +31,10 @@ const Test = () => {
         value={roomId}
         onChangeText={setRoomId}
         keyboardType="numeric"
+        maxLength={4}
       />
       {error ? <Text style={[styles.error, { color: colors.notification }]}>{error}</Text> : null}
-      <Button title="Go to VC" onPress={handlePress} color={colors.primary} />
+      <Button title="Enter Party Room (Coming Soon)" disabled onPress={handlePress} color={colors.primary} />
     </View>
   );
 };

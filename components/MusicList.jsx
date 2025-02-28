@@ -32,7 +32,7 @@ const MusicList = ({ dataset, isQueue, onPress }) => {
       {dataset?.map((song, index) => (
         <MusicListItem
           key={index}
-          title={song.title || song.name}
+          title={song.title || song.name || song.artist}
           subtitle={formatArtists(song.artists)}
           imageUrl={getThumbUrl(song)}
           onPress={() => onPress(song)}

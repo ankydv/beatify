@@ -1,23 +1,24 @@
 import { loadAuthState } from "@/state/slices/auth.slice";
-import { useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Linking } from "react-native";
 import { useDispatch } from "react-redux";
 import { initializeSocket } from '@/configs/socket'
-import useAutoUpdate from '@/services/ota.service';
+import useAppUpdater from '@/hooks/updater.hooks';
 
 const EventListeners = () => {
-  const navigation = useNavigation();
-
-  // useAutoUpdate();
-
+  const router = useRouter();
+  const { checkForUpdates } = useAppUpdater();
+ 
   useEffect(() => {
     const handleUrl = (event) => {
       const { url } = event;
-      if(url.includes('oauthredirect'))
-          console.log('handle oauth')
+      if(url.includes('oauthredirect')){
+        router.replace('/(tabs)/library');
+          return;
+      }
       if (url === 'trackplayer://notification.click') {
-        navigation.navigate('player');
+        router.replace('player');
       }
     };
     Linking.addEventListener('url', handleUrl);
@@ -33,9 +34,12 @@ const EventListeners = () => {
         console.log('Socket disconnected');
       });
     };
-
-    setupSocket();
-
+    if (!__DEV__) {
+      console.log = () => {};
+      console.warn = () => {};
+    }
+    // setupSocket();
+    checkForUpdates();
 
   }, []);
 

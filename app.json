@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "open-music",
+    "name": "Beatify",
     "slug": "open-music",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "com.ankitby2.openmusic",
+    "scheme": "com.ankydv.beatify",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/splash.png",
@@ -20,7 +20,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.ankitby2.openmusic"
+      "package": "com.ankydv.beatify",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",

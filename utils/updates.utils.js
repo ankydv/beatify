@@ -1,9 +1,10 @@
 import { checkForUpdates, downloadUpdate, installUpdate } from '../services/updates.service';
 import { Alert } from 'react-native';
 import * as FileSystem from 'expo-file-system';
+import { nativeApplicationVersion } from 'expo-application';
 
 export const checkAppUpdates = async (onUpdateAvailable, onUpdateNotAvailable) => {
-  const currentVersion = '1.0.1'; // Set your current version here
+  const currentVersion = nativeApplicationVersion; // Set your current version here
   const latestRelease = await checkForUpdates(currentVersion);
 
   if (latestRelease) {
@@ -21,15 +22,13 @@ export const handleUpdate = async (release, onProgress, onUpdateComplete, onUpda
     onUpdateFailed('Could not find the update file.');
     return;
   }
-  console.log('asset', asset)
   const destinationPath = `${FileSystem.documentDirectory}${asset.name}`;
   const filePath = await downloadUpdate(asset.browser_download_url, destinationPath, onProgress);
-  console.log('filePath', filePath)
 
   if (filePath) {
     // installUpdate(filePath);
     onUpdateComplete();
   } else {
-    onUpdateFailed('Failed to download the update.');
+    // onUpdateFailed('Failed to download the update.');
   }
 };

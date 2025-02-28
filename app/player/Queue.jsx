@@ -29,7 +29,7 @@ const Queue = ({ setIsQueueVisible }) => {
       style={{ width: "90%", height: "100" }}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={{ fontSize: 18, fontWeight: "bold", marginBottom: 10 }}>
+      <Text style={{ fontSize: 18, fontWeight: "bold", marginBottom: 10, color: "white" }}>
         Current Queue
       </Text>
       {queue?.tracks?.length > 0 ? (

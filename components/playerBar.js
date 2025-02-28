@@ -45,7 +45,7 @@ const PlayerBar = () => {
   })
 
   return (
-    <TouchableOpacity onPress={handlePress} style={[styles.container, {borderColor: theme.colors.border}]}>
+    <TouchableOpacity onPress={handlePress} style={[styles.container, {borderColor: theme.colors.border, backgroundColor: theme.colors.card}]}>
       <Image source={{ uri: track.getThumbUrl("mini") || thumbUrl}} style={styles.image} />
       <View style={styles.textContainer}>
         <Text style={[styles.title]} numberOfLines={1}>

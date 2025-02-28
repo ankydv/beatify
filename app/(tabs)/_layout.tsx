@@ -1,7 +1,6 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Link, Tabs } from 'expo-router';
-import { Pressable } from 'react-native';
+import { Tabs } from 'expo-router';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -29,9 +28,12 @@ export default function TabLayout() {
         headerShown: useClientOnlyValue(false, true),
         tabBarStyle: {
           height: 70,
+          marginTop: currentTrack ? 40 : 0,
         },
-      }}
-      sceneContainerStyle={{marginBottom: currentTrack ? 60 : 0}}>
+        tabBarItemStyle: {
+          paddingVertical: 10,
+        },
+      }}>
       <Tabs.Screen
         name="homeRoutes"
         options={{
