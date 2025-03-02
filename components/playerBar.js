@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Image, TouchableOpacity, StyleSheet } from "react-native";
+import { Image, TouchableOpacity, StyleSheet, Pressable } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useTheme } from "@react-navigation/native";
 import { useSelector } from "react-redux";
@@ -45,7 +45,7 @@ const PlayerBar = () => {
   })
 
   return (
-    <TouchableOpacity onPress={handlePress} style={[styles.container, {borderColor: theme.colors.border, backgroundColor: theme.colors.card}]}>
+    <Pressable onPress={handlePress} style={[styles.container, {borderColor: theme.colors.border, backgroundColor: theme.colors.card}]}>
       <Image source={{ uri: track.getThumbUrl("mini") || thumbUrl}} style={styles.image} />
       <View style={styles.textContainer}>
         <Text style={[styles.title]} numberOfLines={1}>
@@ -64,7 +64,7 @@ const PlayerBar = () => {
           color={theme.colors.text}
         />
       </TouchableOpacity>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
@@ -74,7 +74,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
-    paddingTop: 5,
     borderTopWidth: 1,
     bottom: 70,
     width: "100%",
@@ -88,6 +87,8 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 10,
     borderWidth: 0,
+    justifyContent: 'center',
+    paddingVertical: 10,
   },
   title: {
     fontSize: 16,

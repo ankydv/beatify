@@ -1,38 +1,22 @@
-import { BlurView } from "@react-native-community/blur";
-import React, { useEffect, useState } from "react";
-import { ImageBackground, StyleSheet } from "react-native";
+import React from "react";
+import { ImageBackground, PixelRatio, StyleSheet } from "react-native";
 
-const BlurImageBg = ({ uri, overlayOpacity = 0.52, children }) => {
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [readyToRenderBlur, setReadyToRenderBlur] = useState(false);
+const BlurImageBg = ({ uri, children }) => {
 
-  useEffect(() => {
-    if (imageLoaded) {
-      const delayTimeout = setTimeout(() => {
-        setReadyToRenderBlur(true);
-      }, 90);
-      return () => clearTimeout(delayTimeout);
-    }
-  }, [imageLoaded]);
+  const BASE_DENSITY = 3; 
+  const getBlurRadius = (baseBlur = 10) => {
+      const pixelDensity = PixelRatio.get();
+      return baseBlur * Math.pow((BASE_DENSITY / pixelDensity),2);
+  };
 
   return (
     <ImageBackground
       source={{ uri }}
       style={styles.container}
       resizeMode="cover"
-      onLoadEnd={() => setImageLoaded(true)}
+      blurRadius={getBlurRadius()}
+      imageStyle={{ opacity: 0.6 }}
     >
-      {readyToRenderBlur && (
-        <BlurView
-          style={styles.absolute}
-          blurType={"dark"}
-          blurAmount={32}
-          reducedTransparencyFallbackColor="white"
-          blurRadius={25}
-          downsampleFactor={25}
-          overlayColor={`rgba(0, 0, 0, ${overlayOpacity})`}
-        />
-      )}
       {children}
     </ImageBackground>
   );

@@ -47,6 +47,7 @@ const SearchBar = ({ onSubmit }) => {
         placeholder="Search"
         placeholderTextColor={theme.colors.placeholder || "gray"} 
         ref={inputRef}
+        cursorColor={theme.colors.text}
         style={[
           styles.input,
           {
@@ -65,11 +66,12 @@ const SearchBar = ({ onSubmit }) => {
 
 const styles = StyleSheet.create({
   searchContainer: {
+    height: 50,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 100,
     margin: 10,
     elevation: 2, 
     shadowOffset: { width: 0, height: 2 },

@@ -37,7 +37,7 @@ const Player = () => {
   };
 
   return (
-    <BlurImageBg uri={md.getThumbUrl('mini')} overlayOpacity={0.52}>
+    <BlurImageBg uri={md.getThumbUrl('medium')}>
       <SafeAreaView style={styles.topButtons}>
         <BubbleIcon
           onPress={toggleScreen}

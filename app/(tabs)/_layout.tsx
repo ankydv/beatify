@@ -28,7 +28,7 @@ export default function TabLayout() {
         headerShown: useClientOnlyValue(false, true),
         tabBarStyle: {
           height: 70,
-          marginTop: currentTrack ? 40 : 0,
+          marginTop: currentTrack ? 50 : 0,
         },
         tabBarItemStyle: {
           paddingVertical: 10,

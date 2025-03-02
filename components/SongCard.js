@@ -1,20 +1,17 @@
-import { loadAndPlayTrack } from '@/state/slices/audio.slice';
 import React from 'react';
 import { Image, StyleSheet, TouchableOpacity } from 'react-native';
-import { useDispatch } from 'react-redux';
 import { Text } from './Themed';
 
 const SongCard = ({ item, onPress }) => {
-    const artists = 'test artist'
-    const dispatch = useDispatch();
   return (
     <>{item && 
     <TouchableOpacity style={styles.card} onPress={onPress}>
-      <Image source={{ uri: item.thumbnails[0].url }} style={styles.image} />
+      <Image source={{ uri: item.thumbnails[1]?.url || item.thumbnails[0].url }} 
+        style={[styles.image, item.subscribers && {borderRadius: 100}]} />
       <Text style={styles.title} numberOfLines={1}>
         {item.title}
       </Text>
-      <Text style={artists} numberOfLines={1}>
+      <Text style={styles.title} numberOfLines={1}>
         {item.subtitle}
       </Text>
     </TouchableOpacity>
