@@ -18,6 +18,7 @@ const SearchResults = ({ results }) => {
     const isArtist = item.resultType==='artist';
     if(item.videoId){
       dispatch(loadAndPlayTrack({track: item}))
+      router.push("/player");
     }
     else if(isAlbum || isPlaylist){
       router.push({
@@ -30,6 +31,12 @@ const SearchResults = ({ results }) => {
     }
   }
 
+  if(results.length === 0)
+    return (
+      <View style={{justifyContent: 'center', alignItems: 'center',}}>
+        <Text style={{fontSize: 30, fontWeight: 'bold', textAlign: 'center', paddingVertical: 20}}>Your search results will appear here</Text>
+      </View>
+  )
   return (
     <ScrollView>
       {results?.map((item, index) => (

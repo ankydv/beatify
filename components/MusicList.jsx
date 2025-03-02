@@ -3,13 +3,17 @@ import { View } from "react-native";
 import MusicListItem from "./songListItem";
 import { useDispatch } from "react-redux";
 import { loadAndPlayTrack } from "@/state/slices/audio.slice";
+import { useNavigation } from "expo-router";
 
 const MusicList = ({ dataset, isQueue, onPress }) => {
   const dispatch = useDispatch();
+  const navigation = useNavigation();
 
   if(!onPress){
     onPress = (song) => {
       dispatch(loadAndPlayTrack({ track: song, isQueueTrack: isQueue }));
+      if(!isQueue)
+        navigation.navigate("player");
     }
 }
 

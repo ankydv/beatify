@@ -25,8 +25,8 @@ const Lyrics = () => {
             setCurrentLine('music');
             animateLyric(); 
           }
-        } else if (currentLyric.text !== currentLine) {
-          setCurrentLine(currentLyric.text);
+        } else if (currentLyric.text !== currentLine.trim()) {
+          setCurrentLine('  ' + currentLyric.text + '  ');
           animateLyric();
         }
       };
@@ -59,7 +59,7 @@ const Lyrics = () => {
 
   return (
     <View style={styles.container}>
-      {currentLine === 'music' || currentLine === ''? (
+      {currentLine === 'music' || currentLine.trim() === ''? (
         <FontAwesome name="music" size={40} color="white" />
       ) : (
         <Animated.Text
@@ -91,6 +91,7 @@ const styles = StyleSheet.create({
   lyricsText: {
     fontSize: 30,
     fontWeight: 'bold',
+    fontStyle: 'italic',
     color: 'white',
     textAlign: 'center',
     fontFamily: 'sans-serif', // Similar to Amazon Music

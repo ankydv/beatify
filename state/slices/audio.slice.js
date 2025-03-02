@@ -46,6 +46,7 @@ export const initializePlayer = createAsyncThunk(
         progressUpdateEventInterval: 0.25,
         forwardJumpInterval: 5,
       });
+      await TrackPlayer.setVolume(0.5);
     } catch (error) {
       console.error("Error initializing TrackPlayer:", error);
       throw error;

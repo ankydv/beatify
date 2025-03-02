@@ -44,7 +44,7 @@ const Album = () => {
           { useNativeDriver: false }
         )}
       >
-        <BlurImageBg uri={album.thumbnails[0]?.url} overlayOpacity={0.4}>
+        <BlurImageBg uri={album.thumbnails[0]?.url}>
           <LinearGradient
             colors={["rgba(0,0,0,0)", "rgba(0,0,0,1)"]}
             style={styles.gradientOverlay}

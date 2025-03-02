@@ -23,7 +23,7 @@ const Main = ({setIsQueueVisible}) => {
   const dispatch = useDispatch();
 
   const { metadata, lyrics } = useSelector((state) => state.audio);
-  const [isLyricsVisible, setIsLyricsVisible] = useState(lyrics && true);
+  const [isLyricsVisible, setIsLyricsVisible] = useState(true);
   const md = new Metadata(metadata);
   const title = md.getTitle();
 
@@ -47,6 +47,7 @@ const Main = ({setIsQueueVisible}) => {
             <Image
               source={{ uri: md.getThumbUrl("large") }}
               style={styles.albumArt}
+              // blurRadius={100}
             />
           </View>
         )}
