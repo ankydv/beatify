@@ -35,9 +35,10 @@ const Player = () => {
       navigation.goBack();
     }
   };
+  const img = md.getThumb("medium");
 
   return (
-    <BlurImageBg uri={md.getThumbUrl('medium')}>
+    <BlurImageBg uri={img?.url}>
       <SafeAreaView style={styles.topButtons}>
         <BubbleIcon
           onPress={toggleScreen}

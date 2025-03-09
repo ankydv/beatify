@@ -1,5 +1,5 @@
 import React from "react";
-import { ImageBackground, PixelRatio, StyleSheet } from "react-native";
+import { ImageBackground, PixelRatio, StyleSheet, View } from "react-native";
 
 const BlurImageBg = ({ uri, children }) => {
 
@@ -8,6 +8,12 @@ const BlurImageBg = ({ uri, children }) => {
       const pixelDensity = PixelRatio.get();
       return baseBlur * Math.pow((BASE_DENSITY / pixelDensity),2);
   };
+
+  if(!uri) return (
+    <View style={styles.container}>
+      {children}
+    </View>
+  );
 
   return (
     <ImageBackground
