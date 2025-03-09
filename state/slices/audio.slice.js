@@ -43,7 +43,7 @@ export const initializePlayer = createAsyncThunk(
 
 
         },
-        progressUpdateEventInterval: 0.25,
+        progressUpdateEventInterval: 0.2,
         forwardJumpInterval: 5,
       });
       await TrackPlayer.setVolume(0.5);
@@ -75,7 +75,7 @@ export const loadAndPlayTrack = createAsyncThunk(
         url: md.getStreamingUrl(),
         title: md.getTitle(),
         artist: md.getArtists(),
-        artwork: md.getThumbUrl("mini"),
+        artwork: md.getThumb("mini").url,
       };
       await TrackPlayer.add([track1]);
       await TrackPlayer.play();

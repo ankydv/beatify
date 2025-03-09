@@ -7,6 +7,7 @@ import { logout } from "@/state/slices/auth.slice";
 import useUser from "@/hooks/user.hook";
 import { useEffect } from "react";
 import { useNavigation } from "expo-router";
+import MarqueeText from "@/components/MarqueeText";
 
 export default function TabTwoScreen() {
   const dispatch = useDispatch();
@@ -33,6 +34,7 @@ export default function TabTwoScreen() {
       <View style={styles.container}>
         <Button title="Login (coming soon)" disabled onPress={test}></Button>
         <Button title="Update" onPress={() => navigation.navigate('updater')}></Button>
+        <MarqueeText text={'New Song 2025 | New Hindi Song | Mere Sath Tu | Shraddha Kapoor | Romantic Song | Hindi Video Song'}></MarqueeText>
       </View>
     )
   }

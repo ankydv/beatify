@@ -1,15 +1,15 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, StyleSheet, Animated } from 'react-native';
 import { useSelector } from 'react-redux';
-import { useProgress } from 'react-native-track-player';
 import { FontAwesome } from '@expo/vector-icons';
+import useTrackProgress from '../../hooks/track.hooks';
 
 const Lyrics = () => {
   const parsedLyrics = useSelector((state) => state.audio).lyrics;
-  const { position } = useProgress();
+  const { position } = useTrackProgress();
   const [currentLine, setCurrentLine] = useState('');
 
-  const OFFSET =  0.7; //lyrics offset in seconds
+  const OFFSET =  0.4; //lyrics offset in seconds
   const opacity = useRef(new Animated.Value(0.1)).current;
   const translateY = useRef(new Animated.Value(20)).current;
 

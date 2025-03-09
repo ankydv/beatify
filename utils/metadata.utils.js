@@ -48,21 +48,21 @@ class Metadata {
     return streamObject ? streamObject.url : null;
   }
 
-  getThumbUrl(size) {
-    if (!(this.metadata?.videoDetails?.thumbnail?.thumbnails)) return "metadata cannot be null";
+  getThumb(size) {
+    if (!(this.metadata?.videoDetails?.thumbnail?.thumbnails)) return null;
     thumbnails = this.metadata.videoDetails.thumbnail.thumbnails.sort();
     len = thumbnails.length;
     switch (size) {
       case "mini":
-        return thumbnails[0].url;
+        return thumbnails[0];
       case "small":
-        if (len > 1) return thumbnails[1].url;
+        if (len > 1) return thumbnails[1];
       case "medium":
-        if (len > 2) return thumbnails[2].url;
+        if (len > 2) return thumbnails[2];
       case "large":
-        if (len > 3) return thumbnails[3].url;
+        if (len > 3) return thumbnails[3];
       default:
-        return thumbnails[len - 1].url;
+        return thumbnails[len - 1];
     }
   }
 }
