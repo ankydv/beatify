@@ -53,6 +53,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="party/index"
+        options={{
+          title: 'party',
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="party-popper" size={24} color={color} />,
+          tabBarShowLabel: false,
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
         name="library"
         options={{
           title: 'Library',
@@ -65,15 +74,6 @@ export default function TabLayout() {
         name="index"
         options={{
           href: null,  // This prevents the index route from appearing as a tab
-        }}
-      />
-      <Tabs.Screen
-        name="party/index"
-        options={{
-          title: 'party',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="party-popper" size={24} color={color} />,
-          tabBarShowLabel: false,
-          headerShown: false,
         }}
       />
     </Tabs>
