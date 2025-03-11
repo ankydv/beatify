@@ -52,7 +52,7 @@ const Main = ({setIsQueueVisible}) => {
               source={{ uri: thumb.url }}
               style={[styles.albumArt, {
                 aspectRatio: thumb.width / thumb.height, 
-                width: thumb.width <= width ? thumb.width : width,
+                width: thumb.width <= width ? thumb.width : '95%',
               }]}
             />}
           </View>
@@ -122,6 +122,7 @@ const styles = StyleSheet.create({
   albumArtWrapper: {
     width: "100%",
     alignItems: "center",
+    justifyContent: "center",
   },
   albumArt: {
     elevation: 10,
@@ -134,7 +135,7 @@ const styles = StyleSheet.create({
   },
   infoContainer: {
     width: "100%",
-    paddingHorizontal: 20,
+    padding: 5,
   },
   togglesContainer: {
     flexDirection: "row",
@@ -147,11 +148,13 @@ const styles = StyleSheet.create({
     marginVertical: 5,
     color: "white",
     fontFamily: 'Helvetica Neue Bold',
+    left: 15,
   },
   artist: {
     fontSize: 16,
     marginBottom: 20,
     color: "white",
+    left: 15,
   },
   shadowText: {
     textShadowColor: "black",
