@@ -12,16 +12,20 @@ const PlaylistRow = ({ items, title }) => {
   const router = useRouter();
   const dispatch = useDispatch();
 
-  const isArtist = title.includes('artist');
   const handlePress = (item) => {
     const isVideo = item.videoId;
+    const isArtist = title.includes('artist') || item.subscribers;
     const isAlbum = title.includes('album') || Boolean(item.browseId);
     const isPlaylist = Boolean(item.playlistId)
     if(isVideo){
       dispatch(loadAndPlayTrack({track: item}))
     }
-    else if(isArtist)
-      showUnimplementedFeatureAlert();
+    else if(isArtist){
+      console.log('artist clicked')
+      router.push(
+        {pathname: "/artist", params: {id: item.browseId}}
+      );
+    }
     else if(isAlbum || isPlaylist){
       router.push({
         pathname: "/(tabs)/homeRoutes/Album",

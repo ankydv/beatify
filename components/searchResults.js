@@ -15,10 +15,16 @@ const SearchResults = ({ results }) => {
   const handlePress = (item) => {
     const isAlbum = item.resultType==='album';
     const isPlaylist = item.resultType==='playlist';
-    const isArtist = item.resultType==='artist';
+    const isArtist = item.resultType==='artist' || item.subscribers;
     if(item.videoId){
       dispatch(loadAndPlayTrack({track: item}))
       router.push("/player");
+    }
+    else if(isArtist){
+      console.log('artist clicked');
+      router.push(
+        {pathname: "/artist", params: {id: item.browseId}}
+      );
     }
     else if(isAlbum || isPlaylist){
       router.push({

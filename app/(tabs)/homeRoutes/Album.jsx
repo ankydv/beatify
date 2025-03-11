@@ -2,13 +2,13 @@ import React, { useEffect, useState } from "react";
 import { View, Image, ScrollView, StyleSheet, Animated } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import MusicList from "@/components/MusicList";
-import { useLocalSearchParams, useNavigation } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { getAlbum } from "../../../services/album.service";
 import BubbleIcon from "@/components/BubbleIcon";
 import { Text } from "@/components/Themed";
 import { useTheme } from "@react-navigation/native";
 import BlurImageBg from "../../../components/BlurImageBg";
-import { SafeAreaView } from "react-native-safe-area-context";
+import NavigationHeader from "../../../components/NavigationHeader";
 
 const Album = () => {
   const { id, isPlaylist } = useLocalSearchParams();
@@ -16,7 +16,6 @@ const Album = () => {
   const theme = useTheme();
   const [scrollY, setScrollY] = useState(new Animated.Value(0));
   const [isScrolled, setIsScrolled] = useState(false);
-  const navigation = useNavigation();
 
   useEffect(() => {
     getAlbum(id, isPlaylist).then((res) => setAlbum(res));
@@ -76,32 +75,13 @@ const Album = () => {
           <MusicList dataset={album.tracks} />
         </View>
       </Animated.ScrollView>
-      <SafeAreaView
-        style={[styles.topButtons, isScrolled && { backgroundColor: "black" }]}
-      >
-        <BubbleIcon
-          name="arrow-back"
-          size={24}
-          onPress={() => navigation.goBack()}
-        />
-        {isScrolled && <Text>{album.title}</Text>}
-      </SafeAreaView>
+      <NavigationHeader title={album.title} isScrolled={isScrolled} />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {},
-  topButtons: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 20,
-    gap: 10,
-  },
   gradientOverlay: {
     position: "absolute",
     bottom: 0,
