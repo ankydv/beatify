@@ -9,6 +9,7 @@ import { Text } from "@/components/Themed";
 import { useTheme } from "@react-navigation/native";
 import BlurImageBg from "../../../components/BlurImageBg";
 import { SafeAreaView } from "react-native-safe-area-context";
+import LoadingIndicator from "../../../components/LoadingIndicator";
 
 const Album = () => {
   const { id, isPlaylist } = useLocalSearchParams();
@@ -33,7 +34,9 @@ const Album = () => {
     return () => scrollY.removeListener(listener);
   }, [scrollY]);
 
-  if (!album) return null;
+  if (!album) return (
+    <LoadingIndicator />
+  );
 
   return (
     <View>

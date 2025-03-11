@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View, ActivityIndicator } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { getHome } from '@/services/explore.service';
 import PlaylistRow from '@/components/PlaylistRow';
 import { Text } from '@/components/Themed';
 import QuickPicks from '@/components/QuickPicks';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import LoadingIndicator from '../../../components/LoadingIndicator';
 
 const HomeScreen = () => {
   const [data, setData] = useState(null);
@@ -28,10 +29,7 @@ const HomeScreen = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text>Loading...</Text>
-      </SafeAreaView>
+      <LoadingIndicator />
     );
   }
 
@@ -72,11 +70,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginLeft: 10,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   errorContainer: {
     flex: 1,

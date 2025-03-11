@@ -97,16 +97,16 @@ const Main = ({setIsQueueVisible}) => {
         </View>
         <View style={[styles.controls, {marginTop: 10}]}>
           {/* Share Button */}
-          <BubbleIcon name={'share'} />
+          <BubbleIcon name={'share'} disabled={true} />
 
           {/* Sleep Timer Button */}
-          <BubbleIcon name={'timer'} />
+          <BubbleIcon name={'timer'} disabled={true} />
 
           {/* Queue Button */}
           <BubbleIcon name={'queue-music'} onPress={() => setIsQueueVisible(true)}/>
 
           {/* Menu Button */}
-          <BubbleIcon name={'more-horiz'} />
+          <BubbleIcon name={'more-horiz'} disabled={true} />
         </View>
       </View>
     </>

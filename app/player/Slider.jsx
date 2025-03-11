@@ -28,6 +28,7 @@ const SliderAndTime = () => {
 
   return (
     <View style={styles.slider}>
+      <View style={styles.trackContainer}>
       <View style={styles.bufferedTrackContainer}>
         <View
           style={[
@@ -46,6 +47,7 @@ const SliderAndTime = () => {
         thumbTintColor={"white"}
         onSlidingComplete={handleSlidingComplete}
       />
+      </View>
       <View style={styles.timeContainer}>
         <Text style={[styles.timeText]}>{formatTime(position)}</Text>
         <Text style={[styles.timeText]}>{formatTime(duration)}</Text>
@@ -60,6 +62,9 @@ const styles = StyleSheet.create({
     slider: {
         width: "100%",
         height: 19,
+      },
+      trackContainer: {
+        
       },
       bufferedTrackContainer: {
         position: "absolute",
