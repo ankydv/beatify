@@ -7,26 +7,16 @@ import {
   StyleSheet,
   Image,
   BackHandler,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { socket } from '@/configs/socket';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import ChatComponent from './chat';
 import WebRTCClient from './webRTC';
-const demoParticipants = [
-    { id: 1, name: 'Alice', avatar: 'https://i.pravatar.cc/100?u=alice', isSpeaking: true },
-    { id: 2, name: 'Bob', avatar: 'https://i.pravatar.cc/100?u=bob', isSpeaking: false },
-    { id: 3, name: 'Charlie', avatar: 'https://i.pravatar.cc/100?u=charlie', isSpeaking: false },
-    { id: 4, name: 'Daisy', avatar: 'https://i.pravatar.cc/100?u=daisy', isSpeaking: true },
-    { id: 5, name: 'Eve', avatar: 'https://i.pravatar.cc/100?u=eve', isSpeaking: false },
-    { id: 6, name: 'Frank', avatar: 'https://i.pravatar.cc/100?u=frank', isSpeaking: true },
-    { id: 3, name: 'Charlie', avatar: 'https://i.pravatar.cc/100?u=charlie', isSpeaking: false },
-    { id: 4, name: 'Daisy', avatar: 'https://i.pravatar.cc/100?u=daisy', isSpeaking: true },
-    { id: 5, name: 'Eve', avatar: 'https://i.pravatar.cc/100?u=eve', isSpeaking: false },
-    { id: 6, name: 'Frank', avatar: 'https://i.pravatar.cc/100?u=frank', isSpeaking: true },
-  ];
-  
-const PartyRoom = ({ roomName="ankit", participants=demoParticipants, onToggleMic= () =>{} }) => {
+import LoadingIndicator from '@/components/LoadingIndicator';
+
+const PartyRoom = ({ onToggleMic= () =>{} }) => {
   const [isMuted, setIsMuted] = useState(false);
   const router = useRouter();
   const [participantsList, setParticipantsList] = useState();
@@ -43,7 +33,6 @@ const PartyRoom = ({ roomName="ankit", participants=demoParticipants, onToggleMi
 
   const onBackPress = () => {
     handleLeaveRoom();
-    console.log('back pressed')
     return true;
   };
 
@@ -74,13 +63,13 @@ const PartyRoom = ({ roomName="ankit", participants=demoParticipants, onToggleMi
       setIsConnected(true);
       console.log('connected');
       socket.emit('join-room', { roomId }, (response) => {
-        console.log(response);
         if (response.success) {
           console.log('Successfully joined room:', roomId);
           setIsJoining(false); // Stop loading once joined
           setParticipantsList(response.roomParticipants); // Update participants list
         } else {
           console.error('Failed to join room:', response.message);
+          Alert.alert('Error', response.message, options = {onDismiss: () => router.back()});
           setIsJoining(false); // Stop loading even if failed
         }
       });
@@ -93,7 +82,6 @@ const PartyRoom = ({ roomName="ankit", participants=demoParticipants, onToggleMi
     function onJoined(data){
       console.log(data.userId+" joined");
       setParticipantsList(data.roomParticipants);
-      console.log(data.roomParticipants)
     }
 
     function onLeft(data){
@@ -120,14 +108,14 @@ const PartyRoom = ({ roomName="ankit", participants=demoParticipants, onToggleMi
   
   if(isJoining){
     return (
-      <Text style={{color:'white'}}>Joining</Text>
+      <LoadingIndicator />
     );
   }
   return (
     <View style={styles.container}>
       {/* Room Header */}
       <View style={styles.header}>
-        <Text style={styles.roomName}>{roomName}</Text>
+        <Text style={styles.roomName}>{roomId}</Text>
         <Text style={styles.participantCount}>
           {participantsList?.length} Participants
         </Text>
@@ -141,7 +129,7 @@ const PartyRoom = ({ roomName="ankit", participants=demoParticipants, onToggleMi
       <FlatList
         data={participantsList}
         numColumns={3}
-        keyExtractor={(item) => item.userId.toString()}
+        keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.gridContainer}
         renderItem={({ item }) => (
           <View style={styles.avatarContainer}>
@@ -175,7 +163,7 @@ const PartyRoom = ({ roomName="ankit", participants=demoParticipants, onToggleMi
           <Text style={styles.controlText}>Raise Hand</Text>
         </TouchableOpacity>
       </View>
-      <WebRTCClient roomId={roomId}/>
+      {/* <WebRTCClient roomId={roomId}/> */}
     </View>
   );
 };

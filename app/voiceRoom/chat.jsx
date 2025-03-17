@@ -54,7 +54,7 @@ const ChatComponent = ({ roomId }) => {
         keyExtractor={(item, index) => index.toString()}
         renderItem={({ item }) => (
           <View style={styles.messageContainer}>
-            <Text style={styles.senderText}>{item.user.userName}:</Text>
+            <Text style={styles.senderText}>{item.userName}:</Text>
             <Text style={styles.messageText}>{item.message}</Text>
           </View>
         )}
