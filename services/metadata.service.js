@@ -7,15 +7,14 @@ import { refreshToken } from './auth.service';
 const apiKey = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 const baseUrl = 'https://www.youtube.com/youtubei/v1';
 const baseParams = {
-  key: apiKey,
   contentCheckOk: true,
   racyCheckOk: true
 };
 
 const header = {
-  'User-Agent': 'com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X;)',
-  'X-YouTube-Client-Name': 5,
-  'X-YouTube-Client-Version': '19.45.4',
+  'User-Agent': 'com.google.android.apps.youtube.music/',
+  'X-YouTube-Client-Name': 62,
+  'X-YouTube-Client-Version': '7.25.52',
 };
 
 const context = {

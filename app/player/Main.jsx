@@ -16,6 +16,7 @@ import BubbleIcon from "../../components/BubbleIcon";
 import { ActivityIndicator } from "react-native-paper";
 import { useTheme } from "@react-navigation/native";
 import MarqueeText from "../../components/MarqueeText";
+import LoadingIndicator from "../../components/LoadingIndicator";
 
 const { width } = Dimensions.get("window");
 
@@ -55,6 +56,7 @@ const Main = ({setIsQueueVisible}) => {
                 width: thumb.width <= width ? thumb.width : '95%',
               }]}
             />}
+            {!thumb && <LoadingIndicator />}
           </View>
         )}
         {isLyricsVisible && lyrics && <Lyrics />}
