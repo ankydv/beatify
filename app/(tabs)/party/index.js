@@ -34,7 +34,7 @@ const Test = () => {
         maxLength={4}
       />
       {error ? <Text style={[styles.error, { color: colors.notification }]}>{error}</Text> : null}
-      <Button title="Enter Party Room (Coming Soon)" disabled onPress={handlePress} color={colors.primary} />
+      <Button title="Enter Party Room (Coming Soon)" onPress={handlePress} color={colors.primary} />
     </View>
   );
 };

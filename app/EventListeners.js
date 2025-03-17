@@ -6,7 +6,7 @@ import {
 import { useEffect } from "react";
 import { Linking } from "react-native";
 import { useDispatch } from "react-redux";
-import { initializeSocket } from "@/configs/socket";
+import { initializeSocket, socket } from "@/configs/socket";
 import useAppUpdater from "@/hooks/updater.hooks";
 
 const EventListeners = () => {
@@ -46,8 +46,15 @@ const EventListeners = () => {
       console.log = () => {};
       console.warn = () => {};
     }
-    // setupSocket();
+    setupSocket();
     checkForUpdates();
+
+    return () => {
+      if (socket) {
+        socket.disconnect();
+        console.log("Socket disconnected");
+      }
+    };
   }, []);
 
   const dispatch = useDispatch();
