@@ -1,6 +1,5 @@
-import { useTheme } from "@react-navigation/native";
 import { StyleSheet } from "react-native";
-import { ActivityIndicator } from "react-native-paper";
+import { ActivityIndicator, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const LoadingIndicator = ({size = 50}) => {

@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Image, TouchableOpacity, StyleSheet, Pressable } from "react-native";
+import { Image, StyleSheet, Pressable, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation, useTheme } from "@react-navigation/native";
+import { useTheme, Text } from "react-native-paper";
 import { useSelector } from "react-redux";
 import TrackPlayer, {
   State,
   usePlaybackState,
 } from "react-native-track-player";
 import Track from "@/utils/track.utils";
-import { Text, View } from "./Themed";
+import { useNavigation } from "expo-router";
 
 const PlayerBar = () => {
   const navigation = useNavigation();
@@ -45,25 +45,25 @@ const PlayerBar = () => {
   })
 
   return (
-    <Pressable onPress={handlePress} style={[styles.container, {borderColor: theme.colors.border, backgroundColor: theme.colors.card}]}>
+    <Pressable onPress={handlePress} style={[styles.container, {borderColor: theme.colors.border, backgroundColor: theme.colors.surface}]}>
       <Image source={{ uri: track.getThumbUrl("mini") || thumbUrl}} style={styles.image} />
       <View style={styles.textContainer}>
-        <Text style={[styles.title]} numberOfLines={1}>
+        <Text variant="titleMedium" style={[styles.title]} numberOfLines={1}>
           {track.title}
         </Text>
-        <Text style={[styles.artist]} numberOfLines={1}>
+        <Text variant="bodyMedium" style={[styles.artist]} numberOfLines={1}>
           {track.artists || artist}
         </Text>
       </View>
-      <TouchableOpacity onPress={togglePlayBack}>
+      <Pressable onPress={togglePlayBack}>
         <MaterialIcons
           name={`${
             playback.state == State.Playing ? "pause" : "play"
           }-circle-filled`}
           size={40}
-          color={theme.colors.text}
+          color={theme.colors.primary}
         />
-      </TouchableOpacity>
+      </Pressable>
     </Pressable>
   );
 };
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
-    borderTopWidth: 1,
+    borderTopWidth: 0.3,
     bottom: 70,
     width: "100%",
   },
@@ -91,11 +91,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   title: {
-    fontSize: 16,
     fontWeight: "bold",
   },
   artist: {
-    fontSize: 14,
   },
 });
 

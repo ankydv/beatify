@@ -1,40 +1,54 @@
-import React, { useState } from 'react';
-import { Button, TextInput, View, StyleSheet, Text } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useTheme } from '@react-navigation/native';
+import React, { useState } from "react";
+import { View, StyleSheet } from "react-native";
+import { useRouter } from "expo-router";
+import { Button, Text, useTheme, TextInput } from "react-native-paper";
 
 const Test = () => {
-  const [roomId, setRoomId] = useState('');
-  const [error, setError] = useState('');
+  const [roomId, setRoomId] = useState("");
+  const [error, setError] = useState("");
   const router = useRouter();
   const { colors } = useTheme();
 
   const handlePress = () => {
     if (!roomId.trim()) {
-      setError('Room ID is required.');
+      setError("Room ID is required.");
       return;
     }
-    setError('');
+    setError("");
     router.push({
-      pathname: 'voiceRoom',
+      pathname: "voiceRoom",
       params: { roomId },
     });
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.label, { color: colors.text }]}>Enter Room ID:</Text>
+    <View style={[styles.container]}>
+      <Text variant="labelLarge" style={[styles.label]}>
+        Enter Room ID:
+      </Text>
       <TextInput
-        style={[styles.input, { borderColor: colors.primary, color: colors.text }]}
+        style={[styles.input]}
         placeholder="Room ID"
-        placeholderTextColor={colors.text}
         value={roomId}
         onChangeText={setRoomId}
         keyboardType="numeric"
         maxLength={4}
+        error={error}
+        // onSubmitEditing={handlePress}
+        mode="outlined"
       />
-      {error ? <Text style={[styles.error, { color: colors.notification }]}>{error}</Text> : null}
-      <Button title="Enter Party Room (Coming Soon)" disabled onPress={handlePress} color={colors.primary} />
+      <Button 
+        mode="contained" 
+        // onPress={handlePress}
+        style={[styles.button]}
+      >
+        Enter Party Room (Coming Soon)
+      </Button>
+      {error ? (
+        <Text variant="titleMedium" style={[{ color: colors.notification }]}>
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 };
@@ -44,16 +58,13 @@ export default Test;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     padding: 16,
   },
   label: {
-    fontSize: 16,
     marginBottom: 8,
   },
   input: {
-    height: 40,
-    borderWidth: 1,
     borderRadius: 4,
     paddingHorizontal: 8,
     marginBottom: 16,
@@ -62,4 +73,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 8,
   },
+  button: {
+    borderRadius: 4,
+  }
 });

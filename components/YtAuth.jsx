@@ -5,7 +5,7 @@ import * as Clipboard from "expo-clipboard";
 import { getDeviceCode, getBearerToken } from "@/services/ytAuth.service";
 import { authenticateUser } from "@/state/slices/auth.slice";
 import { useDispatch, useSelector } from "react-redux";
-import { useTheme } from "@react-navigation/native";
+import { useTheme } from "react-native-paper";
 
 const YtAuth = () => {
   const { isLoggedIn } = useSelector((state) => state.auth);

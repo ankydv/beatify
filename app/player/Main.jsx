@@ -14,7 +14,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { playNextTrack, playPrevTrack } from "@/state/slices/audio.slice.js"
 import BubbleIcon from "../../components/BubbleIcon";
 import { ActivityIndicator } from "react-native-paper";
-import { useTheme } from "@react-navigation/native";
+import { useTheme } from "react-native-paper";
 import MarqueeText from "../../components/MarqueeText";
 import LoadingIndicator from "../../components/LoadingIndicator";
 

@@ -1,5 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DefaultTheme as NavigationLightTheme, DarkTheme as NavigationDarkTheme,  ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -7,12 +7,18 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 import TrackPlayer from 'react-native-track-player';
 import store from '@/state/store';
-import { LightTheme } from '@/theme';
+import { LightTheme as PaperLightTheme, DarkTheme as PaperDarkTheme } from '@/theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { Provider } from 'react-redux';
 import EventListeners from './EventListeners'
 import GlobalModal from '../components/GlobalModal';
 import { StatusBar } from 'expo-status-bar';
+import { PaperProvider, adaptNavigationTheme } from 'react-native-paper';
+
+const {LightTheme, DarkTheme} = adaptNavigationTheme({
+  reactNavigationDark: NavigationDarkTheme,
+  reactNavigationLight: NavigationLightTheme,
+});
 
 declare global {
   var trackPlayerServiceRegistered: boolean | undefined;
@@ -71,16 +77,18 @@ function RootLayoutNav() {
   return (
     <Provider store={store}>
       <StatusBar translucent />
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : LightTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="player" options={{ headerShown: false }} />
-          <Stack.Screen name="voiceRoom" options={{ headerShown: false }} />
-          <Stack.Screen name="updater" options={{ headerShown: false }} />
-        </Stack>
-        <EventListeners />
-        <GlobalModal />
-      </ThemeProvider>
+      <PaperProvider theme={colorScheme === 'dark' ? PaperDarkTheme : PaperLightTheme} >
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : LightTheme}>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="player" options={{ headerShown: false }} />
+            <Stack.Screen name="voiceRoom" options={{ headerShown: false }} />
+            <Stack.Screen name="updater" options={{ headerShown: false }} />
+          </Stack>
+          <EventListeners />
+          <GlobalModal />
+        </ThemeProvider>
+      </PaperProvider>
     </Provider>
   );
 }

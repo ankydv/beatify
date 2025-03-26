@@ -1,16 +1,18 @@
 import React from "react";
 import MusicList from "./MusicList";
-import { ScrollView } from "react-native";
-import { Text, View } from "./Themed";
+import { ScrollView, View } from "react-native";
 import { useDispatch } from "react-redux";
 import { loadAndPlayTrack } from "@/state/slices/audio.slice";
 import { useRouter } from "expo-router";
 import { showUnimplementedFeatureAlert } from "@/utils/alerts.utils";
+import { useTheme } from "@react-navigation/native";
+import { Text } from "react-native-paper";
 
 const SearchResults = ({ results }) => {
 
   const dispatch = useDispatch();
   const router = useRouter();
+  const { colors } = useTheme();
 
   const handlePress = (item) => {
     const isAlbum = item.resultType==='album';
@@ -34,14 +36,14 @@ const SearchResults = ({ results }) => {
   if(results.length === 0)
     return (
       <View style={{justifyContent: 'center', alignItems: 'center',}}>
-        <Text style={{fontSize: 30, fontWeight: 'bold', textAlign: 'center', paddingVertical: 20}}>Your search results will appear here</Text>
+        <Text variant="headlineLarge" >Your search results will appear here</Text>
       </View>
   )
   return (
     <ScrollView>
       {results?.map((item, index) => (
         <View key={index}>
-          <Text style={{fontSize: 20, fontWeight: 'bold', padding: 10}}>{item.category}</Text>
+          <Text variant="titleLarge" style={{paddingLeft: 10, fontWeight: 'bold'}} >{item.category}</Text>
           <MusicList dataset={item.data} onPress={handlePress} />
         </View>
       ))}

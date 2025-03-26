@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { TouchableOpacity, Text, StyleSheet, View } from "react-native";
-import { useTheme } from "@react-navigation/native";
+import { Button, useTheme } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
@@ -50,38 +50,22 @@ const SignInWithYouTube = () => {
     );
   }
   return (
-    <TouchableOpacity
-      style={[styles.button, { backgroundColor: colors.primary }]}
+    <Button
+      style={[styles.button]}
       onPress={handleSignIn}
+      mode="contained"
+      icon='youtube'
+      buttonColor={colors.secondary}
     >
-      <View style={styles.iconContainer}>
-        <MaterialCommunityIcons name="youtube" size={24} color="white" />
-      </View>
-      <Text style={[styles.buttonText, { color: colors.text }]}>
         Sign in with YouTube
-      </Text>
-    </TouchableOpacity>
+    </Button>
   );
 };
 
 const styles = StyleSheet.create({
   button: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingVertical: 12,
-    paddingHorizontal: 20,
     borderRadius: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  iconContainer: {
-    marginRight: 10,
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: "600",
   },
 });
 

@@ -6,7 +6,7 @@ import { useLocalSearchParams, useNavigation } from "expo-router";
 import { getAlbum } from "../../../services/album.service";
 import BubbleIcon from "@/components/BubbleIcon";
 import { Text } from "@/components/Themed";
-import { useTheme } from "@react-navigation/native";
+import { useTheme } from "react-native-paper";
 import BlurImageBg from "../../../components/BlurImageBg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LoadingIndicator from "../../../components/LoadingIndicator";
@@ -49,7 +49,7 @@ const Album = () => {
       >
         <BlurImageBg uri={album.thumbnails[0]?.url}>
           <LinearGradient
-            colors={["rgba(0,0,0,0)", "rgba(0,0,0,1)"]}
+            colors={["rgba(255,255,255,0)", theme.colors.surface]}
             style={styles.gradientOverlay}
           />
           <Image
@@ -60,8 +60,8 @@ const Album = () => {
           />
           <Text style={styles.albumTitle}>{album.title}</Text>
           <View style={styles.buttonsContainer}>
-            <BubbleIcon name={"download"} />
-            <BubbleIcon name={"my-library-add"} />
+            <BubbleIcon style={styles.bubbleButton} color = {theme.colors.text} name={"download"} />
+            <BubbleIcon color = {theme.colors.text} name={"my-library-add"} />
             <BubbleIcon
               name={"play-arrow"}
               size={35}
@@ -71,8 +71,8 @@ const Album = () => {
               }}
               color={theme.colors.background}
             />
-            <BubbleIcon name="share" />
-            <BubbleIcon name={"more-vert"} />
+            <BubbleIcon color = {theme.colors.text} name="share" />
+            <BubbleIcon color = {theme.colors.text} name={"more-vert"} />
           </View>
         </BlurImageBg>
         <View style={styles.musicListContainer}>
@@ -80,11 +80,12 @@ const Album = () => {
         </View>
       </Animated.ScrollView>
       <SafeAreaView
-        style={[styles.topButtons, isScrolled && { backgroundColor: "black" }]}
+        style={[styles.topButtons, isScrolled && { backgroundColor: theme.colors.surface }]}
       >
         <BubbleIcon
           name="arrow-back"
           size={24}
+          color={theme.colors.text}
           onPress={() => navigation.goBack()}
         />
         {isScrolled && <Text>{album.title}</Text>}
@@ -127,6 +128,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     width: 300,
     marginTop: 20,
+  },
+  bubbleButton: {
+    // backgroundColor: 'black'
   },
   musicListContainer: {
     flex: 1,
