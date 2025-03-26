@@ -1,8 +1,7 @@
 import React, { useRef, useState } from "react";
-import { TextInput, StyleSheet, Pressable } from "react-native";
+import { TextInput, StyleSheet, Pressable, View } from "react-native";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
-import { View } from "./Themed";
-import { useTheme } from "@react-navigation/native";
+import { useTheme } from "react-native-paper";
 import { useFocusEffect } from "expo-router";
 
 const SearchBar = ({ onSubmit }) => {
@@ -34,7 +33,8 @@ const SearchBar = ({ onSubmit }) => {
       style={[
         styles.searchContainer,
         {
-          backgroundColor: theme.colors.card, 
+          backgroundColor: theme.colors.background,
+          borderColor: theme.colors.outline,
           shadowColor: theme.dark ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.2)", // Light shadow for dark mode
         },
       ]}
@@ -47,7 +47,7 @@ const SearchBar = ({ onSubmit }) => {
         placeholder="Search"
         placeholderTextColor={theme.colors.placeholder || "gray"} 
         ref={inputRef}
-        cursorColor={theme.colors.text}
+        cursorColor={theme.colors.primary}
         style={[
           styles.input,
           {
@@ -73,10 +73,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 100,
     margin: 10,
-    elevation: 2, 
+    elevation: 1, 
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3, 
+    borderWidth: 1,
   },
   input: {
     flex: 1,

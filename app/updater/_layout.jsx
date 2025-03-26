@@ -1,23 +1,26 @@
 import React from 'react';
-import { Button } from 'react-native';
-import { View, Text } from '@/components/Themed';
 import { nativeApplicationVersion } from 'expo-application';
 import useAppUpdater from '@/hooks/updater.hooks';
+import { Button, Text } from 'react-native-paper';
+import { View } from 'react-native';
 
 const Updater = () => {
   const { isChecking, downloadProgress, checkForUpdates } = useAppUpdater();
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <Text>Current Version: {nativeApplicationVersion}</Text>
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10 }}>
+      <Text variant='bodyLarge' >Current Version: {nativeApplicationVersion}</Text>
       {downloadProgress !== null ? (
         <Text>Downloading Update: {downloadProgress}%</Text>
       ) : (
         <Button
-          title="Check for Updates"
+          mode="contained"
           onPress={() => checkForUpdates(true)}
           disabled={isChecking}
-        />
+          loading={isChecking}
+        >
+          Check for Updates
+        </Button>
       )}
     </View>
   );

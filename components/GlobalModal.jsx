@@ -3,7 +3,7 @@ import React from 'react';
 import { Modal, View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { closeModal } from '../state/slices/modal.slice';
-import { useTheme } from '@react-navigation/native';
+import { useTheme } from 'react-native-paper';
 
 const GlobalModal = () => {
   const isVisible = useSelector((state) => state.modal.isVisible);

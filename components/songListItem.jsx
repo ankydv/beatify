@@ -1,8 +1,7 @@
 import React from "react";
 import { Dimensions, Image, Pressable, StyleSheet, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { Text } from "./Themed";
-import { useTheme } from "@react-navigation/native";
+import { Text, useTheme } from "react-native-paper";
 
 const textWidth = Dimensions.get('window').width - 100;
 
@@ -14,10 +13,10 @@ const MusicListItem = ({onPress, imageUrl, title, subtitle, onMorePress, isQueue
     <Pressable onPress={onPress} style={[styles.container]}>
       {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.image} /> : <Text style={styles.serialNumber}>{index+1}</Text>}
       <View style={styles.textContainer}>
-        <Text style={[styles.title, isQueue && {color: 'white'}]} numberOfLines={1}>
+        <Text variant="titleMedium" style={[styles.title, isQueue && {color: 'white'}]} numberOfLines={1}>
           {title}
         </Text>
-        <Text style={[styles.subtitle, isQueue && {color: 'white'}]} numberOfLines={1}>
+        <Text variant="bodyMedium" style={[styles.subtitle, isQueue && {color: 'white'}]} numberOfLines={1}>
           {subtitle}
         </Text>
       </View>
@@ -49,12 +48,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 16,
     fontWeight: "bold",
     maxWidth: textWidth,
   },
   subtitle: {
-    fontSize: 14,
     maxWidth: textWidth,
   },
   moreButton: {
