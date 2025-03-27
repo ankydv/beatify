@@ -46,7 +46,7 @@ const EventListeners = () => {
       console.log = () => {};
       console.warn = () => {};
     }
-    setupSocket();
+    // setupSocket();
     checkForUpdates();
 
     return () => {
