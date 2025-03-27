@@ -1,15 +1,17 @@
 import axios from 'axios';
-import setupInterceptors from './interceptors';
+import { setupYtInterceptors, setupGoogleInterceptors } from './interceptors';
 
-const createAxiosInstance = (baseURL) => {
+const createAxiosInstance = (baseURL, type = 'music') => {
   const axiosInstance = axios.create({
     baseURL,
     headers: {
       'Content-Type': 'application/json',
     },
   });
-
-  setupInterceptors(axiosInstance);
+  if(type == 'music')
+    setupYtInterceptors(axiosInstance);
+  else if(type == 'google')
+    setupGoogleInterceptors(axiosInstance)
   return axiosInstance;
 };
 

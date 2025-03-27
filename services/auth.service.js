@@ -1,12 +1,16 @@
 import axios from 'axios';
 import { tokenManager } from '../utils/token.utils';
 
-export const refreshToken = async (force = false) => {
+export const refreshToken = async (type = 'music', force = false) => {
   const CLIENT_ID = process.env.EXPO_PUBLIC_CLIENT_ID;
   // const CLIENT_SECRET = process.env.EXPO_PUBLIC_CLIENT_SECRET;
   try {
-    const refreshToken = process.env.EXPO_PUBLIC_YT_REFRESH_TOKEN;
-    const expiresAt = await tokenManager.getExpiry();
+    let refreshToken;
+    if (type === 'google')
+      refreshToken = await tokenManager.getRefreshToken();
+    else if (type === 'music')
+      refreshToken = process.env.EXPO_PUBLIC_YT_REFRESH_TOKEN;
+    const expiresAt = await tokenManager.getExpiry(type);
     const currentTime = Math.floor(Date.now() / 1000);
 
     if (expiresAt > currentTime && !force) {
@@ -44,7 +48,10 @@ export const refreshToken = async (force = false) => {
     const expires = startTime + expires_in;
 
     // Save new tokens and expiry time
-    await tokenManager.saveTokens(access_token, refreshToken, authToken=false, expires);
+    if(type==='music')
+      await tokenManager.saveTokens(access_token, googleAccessToken=false, refreshToken=false, authToken=false, expires, googleExpiresAt=false);
+    else if(type==='google')
+      await tokenManager.saveTokens(accessToken=false, googleAccessToken = access_token, refreshToken=false, authToken=false, expiresAt=false, googleExpiresAt=expires);
     console.log('Token refreshed successfully');
   } catch (error) {
     console.error(

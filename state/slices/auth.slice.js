@@ -8,7 +8,7 @@ export const authenticateUser = createAsyncThunk(
   async ({ accessToken, refreshToken, authToken, expiresIn }, { dispatch }) => {
     const currentTime = Math.floor(Date.now() / 1000);
     // Save tokens using tokenManager
-    await tokenManager.saveTokens(accessToken, refreshToken, authToken, expiresIn + currentTime);
+    await tokenManager.saveTokens(false, googleAccessToken = accessToken, refreshToken, authToken, false, googleExpiresAt = expiresIn+currentTime);
     // Set isLoggedIn status in SecureStore
     await SecureStore.setItemAsync("isLoggedIn", "true");
     dispatch(login());

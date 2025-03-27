@@ -1,12 +1,11 @@
 import React, { useEffect } from "react";
-import { TouchableOpacity, Text, StyleSheet, View } from "react-native";
+import { Text, StyleSheet } from "react-native";
 import { Button, useTheme } from "react-native-paper";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import { authenticateUser } from "@/state/slices/auth.slice";
 import { useDispatch, useSelector } from "react-redux";
-import { getAuthToken } from "@/services/authToken.service"
+// import { getAuthToken } from "@/services/authToken.service"
 
 const SignInWithYouTube = () => {
   const CLIENT_ID = process.env.EXPO_PUBLIC_CLIENT_ID;
@@ -33,10 +32,10 @@ const SignInWithYouTube = () => {
         const { authentication } = response;
         const { accessToken, expiresIn, refreshToken } = authentication;
         // console.log(accessToken)
-        const authToken = await getAuthToken(); 
+        // const authToken = await getAuthToken(); 
         console.log(accessToken)
         console.log(refreshToken)
-        dispatch(authenticateUser({accessToken, refreshToken, authToken, expiresIn}));
+        dispatch(authenticateUser({accessToken, refreshToken, authToken: false, expiresIn}));
       } else {
         console.log("Response:", response);
       }
