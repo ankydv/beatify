@@ -51,7 +51,7 @@ export const refreshToken = async (type = 'music', force = false) => {
     if(type==='music')
       await tokenManager.saveTokens(access_token, googleAccessToken=false, refreshToken=false, authToken=false, expires, googleExpiresAt=false);
     else if(type==='google')
-      await tokenManager.saveTokens(accessToken=false, googleAccessToken = access_token, refreshToken=false, authToken=false, expiresAt=false, googleExpiresAt=expires);
+      await tokenManager.saveTokens(accessToken=false, googleAccessToken = access_token, refreshToken=false, authToken=false, false, googleExpiresAt=expires);
     console.log('Token refreshed successfully');
   } catch (error) {
     console.error(

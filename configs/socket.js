@@ -7,7 +7,7 @@ let socket, errorShown = false;
 
 const initializeSocket = async () => {
   if(socket) return socket;
-   await refreshToken();
+   await refreshToken('google');
   const accessToken = await tokenManager.getGoogleAccessToken(); 
     console.log('connecting to server')
   socket = io(process.env.EXPO_PUBLIC_AUTH_URL, {
