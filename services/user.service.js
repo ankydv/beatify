@@ -1,4 +1,4 @@
-import { ytAuthApi } from '@/configs/axios';
+import { googleAuthApi } from '@/configs/axios';
 
 /**
  * Fetches the user's profile details using the YouTube API.
@@ -6,7 +6,7 @@ import { ytAuthApi } from '@/configs/axios';
  */
 export const getUserProfile = async () => {
   try {
-    const response = await ytAuthApi.get('/userinfo'); // Call userinfo endpoint
+    const response = await googleAuthApi.get('/userinfo'); // Call userinfo endpoint
     return response.data; // Returns user profile data
   } catch (error) {
     console.error('Error fetching user profile:', error);
