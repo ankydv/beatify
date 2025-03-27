@@ -18,7 +18,7 @@ import { useTheme } from "react-native-paper";
 import MarqueeText from "../../components/MarqueeText";
 import LoadingIndicator from "../../components/LoadingIndicator";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
 const Main = ({setIsQueueVisible}) => {
   const playback = usePlaybackState();
@@ -41,7 +41,7 @@ const Main = ({setIsQueueVisible}) => {
   const handleNext = () => {
     dispatch(playNextTrack());
   }
-  const thumb = md.getThumb("large");
+  const thumb = height >= 700 ? md.getThumb("large") : md.getThumb("medium");
 
   return (
     <>
@@ -90,7 +90,7 @@ const Main = ({setIsQueueVisible}) => {
               onPress={handleTogglePlayback}
                />
             {playback.state == State.Buffering && 
-              <ActivityIndicator size={60} color={theme.colors.text} style={{position: 'absolute', opacity: 0.8}} />
+              <ActivityIndicator size={60} color='white' style={{position: 'absolute', opacity: 0.8}} />
             }
           </View>
           <TouchableOpacity onPress={handleNext}>
@@ -143,6 +143,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "flex-start",
     height: 29,
+    marginLeft: 15,
   },
   title: {
     fontSize: 20,
@@ -168,7 +169,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     width: "80%",
     maxWidth: 350,
-    paddingTop: 20,
+    paddingTop: 25,
   },
   timeContainer: {
     flexDirection: "row",
