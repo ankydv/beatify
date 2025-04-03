@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { getHome } from '@/services/explore.service';
 import PlaylistRow from '@/components/PlaylistRow';
 import QuickPicks from '@/components/QuickPicks';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LoadingIndicator from '../../../components/LoadingIndicator';
-import { Text } from 'react-native-paper';
+import { ActivityIndicator, Text } from 'react-native-paper';
 
 const HomeScreen = () => {
   const [data, setData] = useState(null);
@@ -27,22 +27,13 @@ const HomeScreen = () => {
     fetchData();
   }, []);
 
-  if (loading) {
-    return (
-      <LoadingIndicator />
-    );
-  }
-
   if (error) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text>{error}</Text>
-      </View>
-    );
+      Alert.alert('Error', error)
   }
 
   return (
     <SafeAreaView style={styles.container}>
+      {loading && <ActivityIndicator />}
       <ScrollView>
         {data?.map((section, index) => (
           <View key={index} style={styles.section}>
