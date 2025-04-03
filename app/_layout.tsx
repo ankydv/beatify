@@ -14,6 +14,8 @@ import EventListeners from './EventListeners'
 import GlobalModal from '../components/GlobalModal';
 import { StatusBar } from 'expo-status-bar';
 import { PaperProvider, adaptNavigationTheme } from 'react-native-paper';
+import { ClerkProvider } from '@clerk/clerk-expo'
+import { tokenCache } from '@clerk/clerk-expo/token-cache'
 
 const {LightTheme, DarkTheme} = adaptNavigationTheme({
   reactNavigationDark: NavigationDarkTheme,
@@ -75,20 +77,22 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <Provider store={store}>
-      <StatusBar translucent />
-      <PaperProvider theme={colorScheme === 'dark' ? PaperDarkTheme : PaperLightTheme} >
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : LightTheme}>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="player" options={{ headerShown: false }} />
-            <Stack.Screen name="voiceRoom" options={{ headerShown: false }} />
-            <Stack.Screen name="updater" options={{ headerShown: false }} />
-          </Stack>
-          <EventListeners />
-          <GlobalModal />
-        </ThemeProvider>
-      </PaperProvider>
-    </Provider>
+    <ClerkProvider tokenCache={tokenCache} publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+      <Provider store={store}>
+        <StatusBar translucent />
+        <PaperProvider theme={colorScheme === 'dark' ? PaperDarkTheme : PaperLightTheme} >
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : LightTheme}>
+            <Stack>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="player" options={{ headerShown: false }} />
+              <Stack.Screen name="voiceRoom" options={{ headerShown: false }} />
+              <Stack.Screen name="updater" options={{ headerShown: false }} />
+            </Stack>
+            <EventListeners />
+            <GlobalModal />
+          </ThemeProvider>
+        </PaperProvider>
+      </Provider>
+    </ClerkProvider>
   );
 }
