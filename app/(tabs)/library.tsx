@@ -1,30 +1,28 @@
 import { Image, StyleSheet, View } from "react-native";
 import { openModal } from "@/state/slices/modal.slice";
-import { useDispatch, useSelector } from "react-redux";
-import SignInWithYouTube from "@/components/SignInWithYouTube";
-import { logout } from "@/state/slices/auth.slice";
-import useUser from "@/hooks/user.hook";
-import { useEffect } from "react";
+import { useDispatch } from "react-redux";
+import SignInWithYouTube from "@/components/ClerkSignIn";
+// import useUser from "@/hooks/user.hook";
+import { useEffect, useState } from "react";
 import { useNavigation } from "expo-router";
-import { Button, Text, useTheme } from "react-native-paper";
+import { ActivityIndicator, Button, Text, useTheme } from "react-native-paper";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 
 export default function TabTwoScreen() {
   const dispatch = useDispatch();
-  const { isLoggedIn } = useSelector((state: any) => state.auth);
-  const { user } = useUser();
-  const name = user?.name;
-  const picture = user?.picture;
+  const { user, isSignedIn } = useUser();
+  const { signOut } = useAuth();
+  const name = user?.fullName;
+  const picture = user?.imageUrl;
   const navigation = useNavigation();
   const { colors } = useTheme();
-  
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    console.log(user);
-  }, [user]);
-
-  const test = () => {
-    if (isLoggedIn) {
-      dispatch(logout());
+  const test = async () => {
+    if (isSignedIn) {
+      setIsLoading(true);
+      await signOut();
+      setIsLoading(false);
       return;
     }
     dispatch(openModal(<SignInWithYouTube />));
@@ -32,19 +30,27 @@ export default function TabTwoScreen() {
 
   const UpdateButton = () => {
     return (
-      <Button icon='update' 
-        mode="contained" 
+      <Button
+        icon="update"
+        mode="contained"
         buttonColor={colors.secondary}
-        onPress={() => navigation.navigate("updater")}>
+        onPress={() => navigation.navigate("updater")}
+      >
         Update
       </Button>
     );
   };
 
-  if (!isLoggedIn) {
+  if (!isSignedIn) {
     return (
       <View style={styles.container}>
-        <Button icon="login" mode="contained" onPress={test}>
+        <Button
+          disabled={isLoading}
+          loading={isLoading}
+          icon="login"
+          mode="contained"
+          onPress={test}
+        >
           Login
         </Button>
         <UpdateButton />
@@ -58,7 +64,13 @@ export default function TabTwoScreen() {
         <Image source={{ uri: picture }} height={100} width={100}></Image>
       )}
       <UpdateButton />
-      <Button icon="logout" mode="outlined" onPress={test}>
+      <Button
+        disabled={isLoading}
+        loading={isLoading}
+        icon="logout"
+        mode="outlined"
+        onPress={test}
+      >
         Logout
       </Button>
     </View>
