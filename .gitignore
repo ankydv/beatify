@@ -49,3 +49,4 @@ sample/
 android/
 %programData%/
 .vscode/
+eas.json
