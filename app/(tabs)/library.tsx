@@ -7,21 +7,22 @@ import { useEffect, useState } from "react";
 import { useNavigation } from "expo-router";
 import { ActivityIndicator, Button, Text, useTheme } from "react-native-paper";
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import { tokenManager } from "@/utils/token.utils";
 
 export default function TabTwoScreen() {
   const dispatch = useDispatch();
   const { user, isSignedIn } = useUser();
-  const { signOut } = useAuth();
+  const { signOut, getToken } = useAuth();
   const name = user?.fullName;
   const picture = user?.imageUrl;
   const navigation = useNavigation();
   const { colors } = useTheme();
   const [isLoading, setIsLoading] = useState(false);
-
   const test = async () => {
     if (isSignedIn) {
       setIsLoading(true);
       await signOut();
+      await tokenManager.clearTokens();
       setIsLoading(false);
       return;
     }

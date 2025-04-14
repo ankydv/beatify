@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useState } from "react";
 import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
-import { useSSO } from "@clerk/clerk-expo";
+import { useAuth, useSSO } from "@clerk/clerk-expo";
 import { Alert, View } from "react-native";
-import { Button } from "react-native-paper";
 import GoogleSignInButton from "./GoogleSignInButton";
 import { closeModal } from "@/state/slices/modal.slice";
 import { useDispatch } from "react-redux";
+import axios from "axios";
+import { tokenManager } from "@/utils/token.utils";
 
 export const useWarmUpBrowser = () => {
   useEffect(() => {
@@ -25,11 +26,28 @@ WebBrowser.maybeCompleteAuthSession();
 
 export default function ClerkSignIn() {
   const dispatch = useDispatch();
+  const { getToken } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   useWarmUpBrowser();
 
   // Use the `useSSO()` hook to access the `startSSOFlow()` method
   const { startSSOFlow } = useSSO();
+
+  const createUserInMongo = async () => {
+    const token = await getToken();
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    };
+
+    const response = await axios.post(`${process.env.EXPO_PUBLIC_AUTH_URL}/api/auth/signUpUsingClerk`, {}, config);
+    const authToken = response.data.authToken;
+    if(authToken){
+      console.log(authToken )
+      await tokenManager.saveTokens(false, false, false, authToken);
+    }
+  }
 
   const onPress = useCallback(async () => {
     try {
@@ -46,7 +64,9 @@ export default function ClerkSignIn() {
 
       // If sign in was successful, set the active session
       if (createdSessionId) {
-        setActive!({ session: createdSessionId });
+        setActive!({ session: createdSessionId }).then(async() => {
+          await createUserInMongo();
+        });
       } else {
         Alert.alert("Sign in failed", "Please try again later");
       }
@@ -54,6 +74,7 @@ export default function ClerkSignIn() {
       // See https://clerk.com/docs/custom-flows/error-handling
       // for more info on error handling
       console.error(JSON.stringify(err, null, 2));
+      Alert.alert("Sign in failed", "Please try again later")
     } finally {
       setIsLoading(false);
       dispatch(closeModal());
