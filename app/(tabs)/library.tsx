@@ -1,96 +1,198 @@
-import { Image, StyleSheet, View } from "react-native";
+import { StyleSheet, View, TouchableOpacity, ScrollView } from "react-native";
 import { openModal } from "@/state/slices/modal.slice";
 import { useDispatch } from "react-redux";
 import SignInWithYouTube from "@/components/ClerkSignIn";
-// import useUser from "@/hooks/user.hook";
-import { useEffect, useState } from "react";
-import { useNavigation } from "expo-router";
-import { ActivityIndicator, Button, Text, useTheme } from "react-native-paper";
+import { useState } from "react";
+import { useNavigation, useRouter } from "expo-router";
+import { Button, Text, useTheme, Avatar, IconButton } from "react-native-paper";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { tokenManager } from "@/utils/token.utils";
-
-export default function TabTwoScreen() {
+import { SafeAreaView } from "react-native-safe-area-context"; // Use SafeAreaView for better spacing
+import SquareIconButton from "@/components/SquareIconButton"
+export default function LibraryScreen() { // Renamed component for clarity
   const dispatch = useDispatch();
   const { user, isSignedIn } = useUser();
-  const { signOut, getToken } = useAuth();
-  const name = user?.fullName;
-  const picture = user?.imageUrl;
+  const { signOut } = useAuth();
   const navigation = useNavigation();
   const { colors } = useTheme();
-  const [isLoading, setIsLoading] = useState(false);
-  const test = async () => {
-    if (isSignedIn) {
-      setIsLoading(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    if (!isSignedIn) return;
+    setIsLoggingOut(true);
+    try {
       await signOut();
       await tokenManager.clearTokens();
-      setIsLoading(false);
-      return;
+    } catch (error) {
+      console.error("Error logging out:", error);
+      // Handle logout error (e.g., show a message)
+    } finally {
+      setIsLoggingOut(false);
     }
+  };
+
+  const handleLogin = () => {
     dispatch(openModal(<SignInWithYouTube />));
   };
 
-  const UpdateButton = () => {
-    return (
-      <Button
-        icon="update"
-        mode="contained"
-        buttonColor={colors.secondary}
-        onPress={() => navigation.navigate("updater")}
-      >
-        Update
-      </Button>
-    );
+  const handleAddPress = () => {
+    console.log("Add icon pressed");
+    // Navigate to create playlist screen or show modal, etc.
   };
 
+  const handleSettingsPress = () => {
+    console.log("Settings icon pressed");
+    // Navigate to settings screen
+    // navigation.navigate("settings"); // Example navigation
+  };
+
+  const handleHistoryPress = async () => {
+    console.log("History icon pressed");
+    // const res = await authApi.get("/api/songs/fetchhistory?page=1");
+    navigation.navigate("history")
+  }
+
+  const handleLikedSongsPress = () => {
+    console.log("Liked Songs icon pressed");
+  }
+
+  const handlePlaylistsPress = () => {
+    console.log("Playlists icon pressed");
+  }
+  
+
+  // --- Login View ---
   if (!isSignedIn) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={[styles.container, styles.centerContent]}>
+        <Text variant="titleLarge" style={styles.loginPrompt}>
+          Log in to view your library.
+        </Text>
         <Button
-          disabled={isLoading}
-          loading={isLoading}
           icon="login"
           mode="contained"
-          onPress={test}
+          onPress={handleLogin}
+          style={styles.loginButton}
         >
           Login
         </Button>
-        <UpdateButton />
-      </View>
+      </SafeAreaView>
     );
   }
+
+  // --- Logged In View (Spotify Library Style) ---
   return (
-    <View style={styles.container}>
-      <Text variant="titleLarge" style={styles.title}>{`Welcome ${name}`}</Text>
-      {picture && (
-        <Image source={{ uri: picture }} height={100} width={100}></Image>
-      )}
-      <UpdateButton />
-      <Button
-        disabled={isLoading}
-        loading={isLoading}
-        icon="logout"
-        mode="outlined"
-        onPress={test}
-      >
-        Logout
-      </Button>
-    </View>
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity onPress={() => console.log("Profile pressed")}>
+            {user?.imageUrl ? (
+              <Avatar.Image size={36} source={{ uri: user.imageUrl }} />
+            ) : (
+              <Avatar.Icon size={36} icon="account" /> // Placeholder icon
+            )}
+          </TouchableOpacity>
+          <Text variant="titleLarge" style={styles.headerTitle}>Library</Text>
+        </View>
+        <View style={styles.headerRight}>
+          <IconButton
+            icon="plus"
+            size={28}
+            onPress={handleAddPress}
+            iconColor={colors.onSurface} // Use theme color
+          />
+          <IconButton
+            icon="cog-outline" // Or 'settings' depending on icon pack
+            size={24}
+            onPress={handleSettingsPress}
+            iconColor={colors.onSurface} // Use theme color
+          />
+           {/* Optional: Add logout directly to settings or keep it separate */}
+           {/* <IconButton
+             icon="logout"
+             size={24}
+             onPress={handleLogout}
+             disabled={isLoggingOut}
+             iconColor={colors.onSurface}
+           /> */}
+        </View>
+      </View>
+
+      {/* Library Content Area */}
+      <ScrollView style={styles.contentArea}>
+        <View style={styles.squareButtonContainer}>
+          <SquareIconButton icon='history' onPress={handleHistoryPress} text="Recents" />
+          <SquareIconButton icon="heart" onPress={handleLikedSongsPress} text="Liked Songs" />
+          <SquareIconButton icon="playlist-music" onPress={handlePlaylistsPress} text="Playlists" />
+          {/* <SquareIconButton icon="playlist-music" onPress={handlePlaylistsPress} text="Playlists" /> */}
+        </View>
+        {/* Example: Add other buttons or content */}
+        <Button
+            icon="update"
+            mode="contained"
+            buttonColor={colors.secondary}
+            onPress={() => navigation.navigate("updater")}
+            style={{ marginVertical: 20 }}
+        >
+            Update App
+        </Button>
+        <Button
+            disabled={isLoggingOut}
+            loading={isLoggingOut}
+            icon="logout"
+            mode="outlined"
+            onPress={handleLogout}
+            style={{ marginBottom: 20 }}
+        >
+            Logout
+        </Button>
+        {/* Add Lists for Playlists, Artists, Albums etc. */}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  centerContent: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
+    padding: 20,
   },
-  title: {
+  loginPrompt: {
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  loginButton: {
+    width: '80%',
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  headerTitle: {
     fontWeight: "bold",
   },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: "80%",
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
   },
+  contentArea: {
+    flex: 1,
+    padding: 15,
+  },
+  squareButtonContainer: {
+    gap: 20,
+  }
 });

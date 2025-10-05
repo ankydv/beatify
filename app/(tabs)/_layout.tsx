@@ -1,11 +1,11 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Tabs } from 'expo-router';
+import { Tabs, useNavigation, useRouter } from 'expo-router';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { AntDesign, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import PlayerBar from '@/components/playerBar'
 import { useSelector } from 'react-redux';
-import { useTheme } from 'react-native-paper';
+import { IconButton, useTheme } from 'react-native-paper';
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
@@ -17,6 +17,8 @@ function TabBarIcon(props: {
 export default function TabLayout() {
   const { currentTrack } = useSelector((state: any) => state.audio);
   const { colors } = useTheme();
+  const navigation = useNavigation();
+  const router = useRouter();
 
   return (
     <>
@@ -37,7 +39,7 @@ export default function TabLayout() {
         options={{
           title: 'home',
           tabBarIcon: ({ color }) => <AntDesign name="home" color={color} size={24} />,
-          tabBarShowLabel: false,
+          tabBarShowLabel: true,
           headerShown: false,
         }}
       />
@@ -46,7 +48,7 @@ export default function TabLayout() {
         options={{
           title: 'Search',
           tabBarIcon: ({ color }) => <AntDesign name="search1" color={color} size={24} />,
-          tabBarShowLabel: false,
+          tabBarShowLabel: true,
           headerShown: false,
         }}
       />
@@ -55,7 +57,7 @@ export default function TabLayout() {
         options={{
           title: 'party',
           tabBarIcon: ({ color }) => <MaterialCommunityIcons name="party-popper" size={24} color={color} />,
-          tabBarShowLabel: false,
+          tabBarShowLabel: true,
           headerShown: false,
         }}
       />
@@ -64,7 +66,7 @@ export default function TabLayout() {
         options={{
           title: 'Library',
           tabBarIcon: ({ color }) => <MaterialIcons name="library-music" color={color} size={24} />,
-          tabBarShowLabel: false,
+          tabBarShowLabel: true,
           headerShown: false,
         }}
       />

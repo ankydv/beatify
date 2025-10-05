@@ -1,4 +1,4 @@
-import createAxiosInstance from './createAxiosInstance';
+import { createUserAuthAxiosInstance } from './createAxiosInstance';
 
-const authApi = createAxiosInstance(`${process.env.EXPO_PUBLIC_AUTH_URL}/api/auth`);
+const authApi = createUserAuthAxiosInstance(`${process.env.EXPO_PUBLIC_AUTH_URL}`);
 export default authApi;

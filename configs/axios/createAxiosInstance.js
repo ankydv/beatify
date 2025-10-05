@@ -1,7 +1,7 @@
 import axios from 'axios';
-import { setupYtInterceptors, setupGoogleInterceptors } from './interceptors';
+import { setupYtInterceptors, setupGoogleInterceptors, setupUserAuthInterceptors } from './interceptors';
 
-const createAxiosInstance = (baseURL, type = 'music') => {
+export const createAxiosInstance = (baseURL, type = 'music') => {
   const axiosInstance = axios.create({
     baseURL,
     headers: {
@@ -15,4 +15,13 @@ const createAxiosInstance = (baseURL, type = 'music') => {
   return axiosInstance;
 };
 
-export default createAxiosInstance;
+export const createUserAuthAxiosInstance = (baseURL) => {
+  const axiosInstance = axios.create({
+    baseURL,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  setupUserAuthInterceptors(axiosInstance);
+  return axiosInstance;
+};

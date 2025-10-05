@@ -24,3 +24,14 @@ export const setupGoogleInterceptors = (axiosInstance) => {
     (error) => Promise.reject(error)
   );
 };
+
+export const setupUserAuthInterceptors = (axiosInstance) => {
+  axiosInstance.interceptors.request.use(
+    async (config) => {
+      const authToken = await tokenManager.getAuthToken();
+      config.headers['auth-token'] = authToken;
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
+};
