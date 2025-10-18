@@ -31,17 +31,37 @@ const MusicList = ({ dataset, isQueue, onPress }) => {
     else return null;
   }
 
+  const getTitle = (song) => {
+    let title =  song.title || song.name || song.artist
+    if(!title && song.resultType === 'artist')
+      return formatArtists(song.artists);
+    return title;
+  }
+
+  const getSubtitle = (song) => {
+    if(song.resultType === 'artist')
+      return song.subscribers || 'artist';
+    else if(song.resultType === 'playlist')
+        return song.author;
+    else if(song.resultType === 'episode')
+        return song.podcast.name;
+    else if(song.resultType === 'podcast')
+        return 'podcast';
+    return formatArtists(song.artists);
+  }
+
   return (
     <View>
       {dataset?.map((song, index) => (
         <MusicListItem
           key={index}
-          title={song.title || song.name || song.artist}
-          subtitle={formatArtists(song.artists)}
+          title={getTitle(song)}
+          subtitle={getSubtitle(song)}
           imageUrl={getThumbUrl(song)}
           onPress={() => onPress(song)}
           isQueue={isQueue}
           index = {index}
+          resultType = {song.resultType}
         />
       ))}
     </View>

@@ -5,13 +5,13 @@ import { Text, useTheme } from "react-native-paper";
 
 const textWidth = Dimensions.get('window').width - 100;
 
-const MusicListItem = ({onPress, imageUrl, title, subtitle, onMorePress, isQueue, index }) => {
+const MusicListItem = ({onPress, imageUrl, title, subtitle, onMorePress, isQueue, index, resultType }) => {
 
   const theme = useTheme();
-
+  const isArtist = resultType === 'artist';
   return (
-    <Pressable onPress={onPress} style={[styles.container]}>
-      {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.image} /> : <Text style={styles.serialNumber}>{index+1}</Text>}
+    <Pressable onPress={onPress} style={[styles.container,]}>
+      {imageUrl ? <Image source={{ uri: imageUrl }} style={[styles.image, isArtist && {borderRadius: 100}]} /> : <Text style={styles.serialNumber}>{index+1}</Text>}
       <View style={styles.textContainer}>
         <Text variant="titleMedium" style={[styles.title, isQueue && {color: 'white'}]} numberOfLines={1}>
           {title}
@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical:5,
     paddingHorizontal: 15,
   },
   image: {

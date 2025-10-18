@@ -42,7 +42,7 @@ const SearchResults = ({ results }) => {
   return (
     <ScrollView>
       {results?.map((item, index) => (
-        <View key={index}>
+        <View key={index} style={{marginBottom: 10, marginTop: 5, paddingHorizontal: 5,}}>
           <Text variant="titleLarge" style={{paddingLeft: 10, fontWeight: 'bold'}} >{item.category}</Text>
           <MusicList dataset={item.data} onPress={handlePress} />
         </View>
