@@ -13,7 +13,9 @@ class Metadata {
 
   // Example method to get the artists as a formatted string
   getArtists() {
-    return this.metadata?.videoDetails?.author || "Unknown Artist";
+    let artist =  this.metadata?.videoDetails?.author || "Unknown Artist";
+    artist = artist.replace(/\s*-\s*topic$/i, "");
+    return artist;
   }
 
   // Example method to get the album name

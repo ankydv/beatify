@@ -8,6 +8,7 @@ import { Linking } from "react-native";
 import { useDispatch } from "react-redux";
 import { initializeSocket, socket } from "@/configs/socket";
 import useAppUpdater from "@/hooks/updater.hooks";
+import getVisitorData from "@/services/visitorData.service";
 
 const EventListeners = () => {
   const router = useRouter();
@@ -15,6 +16,7 @@ const EventListeners = () => {
   const { checkForUpdates } = useAppUpdater();
 
   useEffect(() => {
+    getVisitorData();
     const handleUrl = (event) => {
       const { url } = event;
       if (url.includes("oauthredirect")) {
