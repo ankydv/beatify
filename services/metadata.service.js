@@ -3,34 +3,20 @@ import qs from 'qs';
 import { getCachedMetadata, cacheMetadata } from '@/services/cache.service'
 import { tokenManager } from '@/utils/token.utils';
 import { refreshToken } from './auth.service';
+import {android_vr} from "@/configs/ytClients.config";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const apiKey = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+const client = android_vr;
+
+//const apiKey = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 const baseUrl = 'https://www.youtube.com/youtubei/v1';
 const baseParams = {
   contentCheckOk: true,
   racyCheckOk: true
 };
 
-const header = {
-  'User-Agent': 'com.google.android.apps.youtube.music/',
-  'X-YouTube-Client-Name': 62,
-  'X-YouTube-Client-Version': '7.25.52',
-};
-
-const context = {
-  "client": {
-      "clientName": "ANDROID_MUSIC",
-      "clientVersion": "7.25.52",
-      "deviceMake": "Samsung",
-      "deviceModel": "X910",
-      "userAgent": "com.google.android.apps.youtube.music/",
-      "osName": "android",
-      "osVersion": "12.0",
-      "hl": "en",
-      "timeZone": "Asia/Kolkata",
-      "utcOffsetMinutes": 330
-    }
-};
+const header = client.header;
+const context = client.context;
 
 const playbackContext = {
     "contentPlaybackContext": {
@@ -58,7 +44,7 @@ const executeRequest = async (url, method = 'GET', headers = {}, data = null) =>
   return response.data;
 };
 
-const callApi = async (endpoint, query, data, useAuth = true) => {
+const callApi = async (endpoint, query, data, useAuth = false) => {
   const endpointUrl = `${endpoint}?${qs.stringify(query)}`;
   let access_token;
 
@@ -96,7 +82,7 @@ const player = async (videoId) => {
     videoId,
     ...baseParams
   };
-  
+  baseData.context.client.visitorData = await AsyncStorage.getItem('visitorData');
   const result = await callApi(endpoint, query, baseData);
 
   // Cache the result for future use
