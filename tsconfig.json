@@ -13,5 +13,5 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-, "app/(tabs)/search.js", "app/(tabs)/homeRoutes/_layout.jsx", "components/PlaylistRow.js", "app/(tabs)/homeRoutes/_layout.jsx"  ]
+, "app/(tabs)/search.js", "app/(tabs)/homeRoutes/_layout.jsx", "components/PlaylistRow.js", "app/(tabs)/homeRoutes/_layout.jsx", "app/library/history.jsx"  ]
 }

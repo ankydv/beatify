@@ -5,15 +5,21 @@ import {
 } from "expo-router";
 import { useEffect } from "react";
 import { Linking } from "react-native";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { initializeSocket, socket } from "@/configs/socket";
 import useAppUpdater from "@/hooks/updater.hooks";
 import getVisitorData from "@/services/visitorData.service";
+import {useHistoryApi} from "@/hooks/library.hooks";
+import { useAuth } from "@clerk/clerk-expo";
+
 
 const EventListeners = () => {
   const router = useRouter();
   const navigation = useNavigation();
   const { checkForUpdates } = useAppUpdater();
+  const { metadata } = useSelector((state) => state.audio);
+  const { addToHistory } = useHistoryApi();
+  const { isSignedIn } = useAuth();
 
   useEffect(() => {
     getVisitorData();
@@ -64,6 +70,17 @@ const EventListeners = () => {
   useEffect(() => {
     dispatch(loadAuthState());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (metadata && isSignedIn) {
+      console.log("Current Track Changed:", metadata.videoDetails.title);
+      addToHistory(metadata).then(() => {
+        console.log("Track added to history");
+      }).catch((err) => {
+        console.error("Failed to add track to history:", err);
+      });
+    }
+  }, [metadata]);
 
   return null;
 };

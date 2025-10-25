@@ -2,11 +2,11 @@ import { Image, StyleSheet, View } from "react-native";
 import { openModal } from "@/state/slices/modal.slice";
 import { useDispatch } from "react-redux";
 import SignInWithYouTube from "@/components/ClerkSignIn";
-// import useUser from "@/hooks/user.hook";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigation } from "expo-router";
-import { ActivityIndicator, Button, Text, useTheme } from "react-native-paper";
+import { Button, Text, useTheme,IconButton } from "react-native-paper";
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import History from "../library/history";
 
 export default function TabTwoScreen() {
   const dispatch = useDispatch();
@@ -54,25 +54,24 @@ export default function TabTwoScreen() {
           Login
         </Button>
         <UpdateButton />
+        
       </View>
     );
   }
   return (
     <View style={styles.container}>
-      <Text variant="titleLarge" style={styles.title}>{`Welcome ${name}`}</Text>
-      {picture && (
-        <Image source={{ uri: picture }} height={100} width={100}></Image>
-      )}
-      <UpdateButton />
-      <Button
-        disabled={isLoading}
-        loading={isLoading}
-        icon="logout"
-        mode="outlined"
-        onPress={test}
-      >
-        Logout
-      </Button>
+      <View style={[styles.profileContainer, {backgroundColor: colors.surface, borderColor: colors.secondary}]}>
+        <View style={{flexDirection: "row", alignItems: "center", gap: 10}}>
+          {picture && (
+            <Image source={{ uri: picture }} height={100} width={100} borderRadius={20}></Image>
+          )}
+          <Text variant="titleLarge" style={styles.title}>{name}</Text>
+        </View>
+        <View>
+          <IconButton icon={'exit-to-app'} size={35} onPress={test}/>
+        </View>
+      </View>
+      <History />
     </View>
   );
 }
@@ -80,9 +79,13 @@ export default function TabTwoScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
     gap: 10,
+  },
+  profileContainer:{
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
   },
   title: {
     fontWeight: "bold",

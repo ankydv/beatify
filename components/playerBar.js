@@ -9,11 +9,13 @@ import TrackPlayer, {
 } from "react-native-track-player";
 import Track from "@/utils/track.utils";
 import { useNavigation } from "expo-router";
+import Metadata from "@/utils/metadata.utils";
 
 const PlayerBar = () => {
   const navigation = useNavigation();
-  const { currentTrack } = useSelector((state) => state.audio);
+  const { currentTrack, metadata } = useSelector((state) => state.audio);
   const track = new Track(currentTrack);
+  const md = new Metadata(metadata);
   const [artist, setArtist] = useState();
   const [thumbUrl, setThumbUrl] = useState();
 
@@ -46,13 +48,13 @@ const PlayerBar = () => {
 
   return (
     <Pressable onPress={handlePress} style={[styles.container, {borderColor: theme.colors.border, backgroundColor: theme.colors.surface}]}>
-      <Image source={{ uri: track.getThumbUrl("mini") || thumbUrl}} style={styles.image} />
+      <Image source={{ uri: md.getThumb("mini").url}} style={styles.image} />
       <View style={styles.textContainer}>
         <Text variant="titleMedium" style={[styles.title]} numberOfLines={1}>
-          {track.title}
+          {md.getTitle()}
         </Text>
         <Text variant="bodyMedium" style={[styles.artist]} numberOfLines={1}>
-          {track.artists || artist}
+          {md.getArtists()}
         </Text>
       </View>
       <Pressable onPress={togglePlayBack}>
