@@ -7,6 +7,7 @@ import { useNavigation } from "expo-router";
 import { Button, Text, useTheme,IconButton } from "react-native-paper";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import History from "../library/history";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function TabTwoScreen() {
   const dispatch = useDispatch();
@@ -43,7 +44,7 @@ export default function TabTwoScreen() {
 
   if (!isSignedIn) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <Button
           disabled={isLoading}
           loading={isLoading}
@@ -55,11 +56,11 @@ export default function TabTwoScreen() {
         </Button>
         <UpdateButton />
         
-      </View>
+      </SafeAreaView>
     );
   }
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={[styles.profileContainer, {backgroundColor: colors.surface, borderColor: colors.secondary}]}>
         <View style={{flexDirection: "row", alignItems: "center", gap: 10}}>
           {picture && (
@@ -72,7 +73,7 @@ export default function TabTwoScreen() {
         </View>
       </View>
       <History />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -80,6 +81,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     gap: 10,
+    padding: 5,
   },
   profileContainer:{
     flexDirection: "row",

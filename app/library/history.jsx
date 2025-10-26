@@ -15,6 +15,9 @@ const History = () => {
     useEffect(() => {
         getHistory().then((res) => {
             setHistory(res);
+        }).catch((err) => {
+            console.log(err);
+        }).finally(() => {
             setIsLoading(false);
         });
     }, []);
