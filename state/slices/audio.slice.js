@@ -66,6 +66,7 @@ export const loadAndPlayTrack = createAsyncThunk(
         await dispatch(initializePlayer()).unwrap(); // Ensures the initialization is complete
       }
       const metadata = await getMetadata(track.videoId);
+      metadata.videoDetails.author = metadata.videoDetails.author.replace(/\s*-\s*topic$/i, "");
       dispatch(setMetadata(metadata));
       const md = new Metadata(metadata);
 

@@ -1,7 +1,7 @@
 import { View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { StyleSheet } from "react-native";
-import {useHistoryApi} from '@/hooks/library.hooks'
+import {useHistoryApi} from '@/hooks/library.hooks/history.hooks';
 import { useEffect, useState } from "react";
 import HistoryList from "./HistoryList";
 

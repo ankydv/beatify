@@ -17,6 +17,7 @@ import { ActivityIndicator } from "react-native-paper";
 import { useTheme } from "react-native-paper";
 import MarqueeText from "../../components/MarqueeText";
 import LoadingIndicator from "../../components/LoadingIndicator";
+import AddToButton from "./AddToButton";
 
 const { width, height } = Dimensions.get("window");
 
@@ -72,14 +73,21 @@ const Main = ({setIsQueueVisible}) => {
             )
               }
           </View>
-          <MarqueeText style={[styles.title, styles.shadowText]}>{title}</MarqueeText>
-          <MarqueeText
-            style={[styles.artist, styles.shadowText, { textShadowRadius: 1 }]}
-          >
-            {md.getArtists()}
-          </MarqueeText>
+          <View style={{ flexDirection: 'row', }}>
+            <View style={{ flex: 1, }}>
+              <MarqueeText style={[styles.title, styles.shadowText]}>{title}</MarqueeText>
+              <MarqueeText
+                style={[styles.artist, styles.shadowText, { textShadowRadius: 1 }]}
+              >
+                {md.getArtists()}
+              </MarqueeText>
+            </View>
+            <AddToButton />
+          </View>
         </View>
-        <SliderAndTime />
+        <View>
+          <SliderAndTime />
+        </View>
         <View style={styles.controls}>
           <TouchableOpacity onPress={handlePrev}>
             <MaterialIcons name="skip-previous" size={35} color="white" />
@@ -99,7 +107,7 @@ const Main = ({setIsQueueVisible}) => {
         </View>
         <View style={[styles.controls, {marginTop: 10}]}>
           {/* Share Button */}
-          <BubbleIcon name={'share'} disabled={true} />
+          <BubbleIcon name={'share'} disabled={false} />
 
           {/* Sleep Timer Button */}
           <BubbleIcon name={'timer'} disabled={true} />

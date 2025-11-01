@@ -13,7 +13,7 @@ import { Provider } from 'react-redux';
 import EventListeners from './EventListeners'
 import GlobalModal from '../components/GlobalModal';
 import { StatusBar } from 'expo-status-bar';
-import { PaperProvider, adaptNavigationTheme } from 'react-native-paper';
+import { PaperProvider, Text, Title, adaptNavigationTheme, useTheme } from 'react-native-paper';
 import { ClerkProvider } from '@clerk/clerk-expo'
 import { tokenCache } from '@clerk/clerk-expo/token-cache'
 
@@ -75,18 +75,34 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const theme = colorScheme === 'dark' ? PaperDarkTheme : PaperLightTheme;
 
   return (
     <ClerkProvider tokenCache={tokenCache} publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}>
       <Provider store={store}>
         <StatusBar translucent />
-        <PaperProvider theme={colorScheme === 'dark' ? PaperDarkTheme : PaperLightTheme} >
+        <PaperProvider theme={theme} >
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : LightTheme}>
-            <Stack>
+            <Stack
+              screenOptions={{
+                headerStyle: {
+                  backgroundColor: theme.colors.background,
+                },
+                headerTintColor: theme.colors.onBackground,
+                headerTitleStyle: {
+                  fontWeight: "600",
+                },
+              }}
+            >
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="player" options={{ headerShown: false }} />
               <Stack.Screen name="voiceRoom" options={{ headerShown: false }} />
               <Stack.Screen name="updater" options={{ headerShown: false }} />
+              <Stack.Screen name="addToPlaylist" options={{ headerShown: true, title: "Add To Playlists",
+                 presentation: "modal", // makes it slide up like a modal
+                 animation: "slide_from_bottom",
+              }} />
+
             </Stack>
             <EventListeners />
             <GlobalModal />

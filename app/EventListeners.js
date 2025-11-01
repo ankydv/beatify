@@ -9,8 +9,9 @@ import { useDispatch, useSelector } from "react-redux";
 import { initializeSocket, socket } from "@/configs/socket";
 import useAppUpdater from "@/hooks/updater.hooks";
 import getVisitorData from "@/services/visitorData.service";
-import {useHistoryApi} from "@/hooks/library.hooks";
+import {useHistoryApi} from "@/hooks/library.hooks/history.hooks";
 import { useAuth } from "@clerk/clerk-expo";
+import {useAppUpdate} from "@/hooks/otaUpdate.hooks"
 
 
 const EventListeners = () => {
@@ -20,6 +21,8 @@ const EventListeners = () => {
   const { metadata } = useSelector((state) => state.audio);
   const { addToHistory } = useHistoryApi();
   const { isSignedIn } = useAuth();
+
+  useAppUpdate();
 
   useEffect(() => {
     getVisitorData();
@@ -53,9 +56,11 @@ const EventListeners = () => {
     if (!__DEV__) {
       console.log = () => {};
       console.warn = () => {};
+      checkForUpdates();
+      console.log(__DEV__);
     }
     // setupSocket();
-    checkForUpdates();
+    
 
     return () => {
       if (socket) {

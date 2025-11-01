@@ -1,4 +1,4 @@
-import { useClerkAxios } from "../hooks/auth.hooks";
+import { useClerkAxios } from "@/hooks/auth.hooks";
 
 /**
  * Add a song to user's listening history
