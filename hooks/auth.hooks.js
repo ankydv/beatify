@@ -18,6 +18,7 @@ export const useClerkAxios = () => {
     }
     const token = await getToken(); 
     if (token) {
+      console.log (token);
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;

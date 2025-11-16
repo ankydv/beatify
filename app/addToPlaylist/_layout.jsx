@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { View, FlatList } from "react-native";
+import { View, FlatList, ToastAndroid } from "react-native";
 import {
   Text,
   Button,
@@ -11,24 +11,25 @@ import {
 } from "react-native-paper";
 import {usePlaylistApi} from "../../hooks/library.hooks/playlist.hooks"; // import your playlist hooks here
 import { useRoute } from "@react-navigation/native";
+import { router } from "expo-router";
 
 export default function AddToPlaylistScreen() {
   const [playlists, setPlaylists] = useState([]);
   const [selectedPlaylists, setSelectedPlaylists] = useState([]);
+  const [belongedPlaylists, setBelongedPlaylists] = useState([]);
   const [newPlaylistName, setNewPlaylistName] = useState("");
-  const [visible, setVisible] = useState(true);
-  const [snackText, setSnackText] = useState("");
   const theme = useTheme();
   const {colors} = theme;
   const {getPlaylists, addSongToMultiplePlaylists} = usePlaylistApi();
-  const {song} = useRoute().params; 
+  const {song, songId} = useRoute().params; 
 
-  // Mock API data
   useEffect(() => {
     const fetchPlaylists = async () => {
-      const {playlists} = await getPlaylists();
-      console.log("Fetched playlists:", playlists);
+      const {playlists} = await getPlaylists(songId);
       setPlaylists(playlists);
+      const belonged = playlists.filter(p => p.isSongPresent).map(p => p.id);
+      setBelongedPlaylists(belonged);
+      setSelectedPlaylists(belonged);
     };
     fetchPlaylists();
   }, []);
@@ -42,16 +43,30 @@ export default function AddToPlaylistScreen() {
   };
 
   const handleAdd = async () => {
+    // Determine which playlists to add and remove
+    const playlistsToAdd = selectedPlaylists.filter(
+      (id) => !belongedPlaylists.includes(id)
+    );
+    const playlistsToRemove = belongedPlaylists.filter(
+      (id) => !selectedPlaylists.includes(id)
+    );
+
     const payload = {
       song,
-      playlists: [
-        ...selectedPlaylists.map((id) => ({ playlistId: id })),
+      add: [
+        ...playlistsToAdd.map((id) => ({ playlistId: id })),
         ...(newPlaylistName ? [{ playlistName: newPlaylistName }] : []),
       ],
+      remove: playlistsToRemove.map((id) => ({ playlistId: id })),
     };
 
-    // console.log("Add to playlist payload:", payload);
     const res = await addSongToMultiplePlaylists(payload);
+    if (res.success) {
+      ToastAndroid.show("Song updated in playlists successfully", ToastAndroid.SHORT);
+      router.back();
+    } else {
+      console.error("Failed to update playlists:", res);
+    }
   };
 
   const renderPlaylistItem = ({ item }) => (
@@ -109,7 +124,7 @@ export default function AddToPlaylistScreen() {
         mode="contained"
         onPress={handleAdd}
         style={{ marginTop: 20, borderRadius: 8 }}
-        disabled={selectedPlaylists.length===0 && newPlaylistName.trim() === ""}
+        disabled={selectedPlaylists.length===0 && newPlaylistName.trim() === "" && belongedPlaylists.length===0}
       >
         Save
       </Button>

@@ -1,4 +1,5 @@
 import { loadAuthState } from "@/state/slices/auth.slice";
+import { setSongId } from "@/state/slices/audio.slice";
 import {
   useNavigation,
   useRouter,
@@ -78,9 +79,8 @@ const EventListeners = () => {
 
   useEffect(() => {
     if (metadata && isSignedIn) {
-      console.log("Current Track Changed:", metadata.videoDetails.title);
-      addToHistory(metadata).then(() => {
-        console.log("Track added to history");
+      addToHistory(metadata).then((res) => {
+        dispatch(setSongId(res.history.song));
       }).catch((err) => {
         console.error("Failed to add track to history:", err);
       });

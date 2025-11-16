@@ -10,17 +10,22 @@ import { useTheme } from "react-native-paper";
 import BlurImageBg from "../../../components/BlurImageBg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LoadingIndicator from "../../../components/LoadingIndicator";
+import {usePlaylistApi} from "@/hooks/library.hooks/playlist.hooks";
 
 const Album = () => {
-  const { id, isPlaylist } = useLocalSearchParams();
+  const { id, isPlaylist, isUserPlaylist } = useLocalSearchParams();
   const [album, setAlbum] = useState();
   const theme = useTheme();
   const [scrollY, setScrollY] = useState(new Animated.Value(0));
   const [isScrolled, setIsScrolled] = useState(false);
   const navigation = useNavigation();
+  const {getPlaylistDetails} = usePlaylistApi();
 
   useEffect(() => {
-    getAlbum(id, isPlaylist).then((res) => setAlbum(res));
+    if(isUserPlaylist)
+      getPlaylistDetails(id).then((res) => setAlbum(res));
+    else
+      getAlbum(id, isPlaylist).then((res) => setAlbum(res));
   }, [id]);
 
   useEffect(() => {
@@ -53,7 +58,7 @@ const Album = () => {
             style={styles.gradientOverlay}
           />
           <Image
-            source={{ uri: album.thumbnails[album.thumbnails.length - 1].url }}
+            source={{ uri: album.thumbnails[album.thumbnails.length - 1]?.url }}
             style={styles.albumArt}
             height={200}
             width={200}

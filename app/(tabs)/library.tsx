@@ -1,4 +1,4 @@
-import { Image, StyleSheet, View } from "react-native";
+import { Image, ScrollView, StyleSheet, View } from "react-native";
 import { openModal } from "@/state/slices/modal.slice";
 import { useDispatch } from "react-redux";
 import SignInWithYouTube from "@/components/ClerkSignIn";
@@ -8,6 +8,7 @@ import { Button, Text, useTheme,IconButton } from "react-native-paper";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import History from "../library/history";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Playlists from "../library/playlists";
 
 export default function TabTwoScreen() {
   const dispatch = useDispatch();
@@ -60,20 +61,23 @@ export default function TabTwoScreen() {
     );
   }
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={[styles.profileContainer, {backgroundColor: colors.surface, borderColor: colors.secondary}]}>
-        <View style={{flexDirection: "row", alignItems: "center", gap: 10}}>
-          {picture && (
-            <Image source={{ uri: picture }} height={100} width={100} borderRadius={20}></Image>
-          )}
-          <Text variant="titleLarge" style={styles.title}>{name}</Text>
+    <ScrollView>
+      <SafeAreaView style={styles.container}>
+        <View style={[styles.profileContainer, {backgroundColor: colors.surface, borderColor: colors.secondary}]}>
+          <View style={{flexDirection: "row", alignItems: "center", gap: 10}}>
+            {picture && (
+              <Image source={{ uri: picture }} height={100} width={100} borderRadius={20}></Image>
+            )}
+            <Text variant="titleLarge" style={styles.title}>{name}</Text>
+          </View>
+          <View>
+            <IconButton icon={'exit-to-app'} size={35} onPress={test}/>
+          </View>
         </View>
-        <View>
-          <IconButton icon={'exit-to-app'} size={35} onPress={test}/>
-        </View>
-      </View>
-      <History />
-    </SafeAreaView>
+        <History />
+        <Playlists />
+      </SafeAreaView>
+    </ScrollView>
   );
 }
 

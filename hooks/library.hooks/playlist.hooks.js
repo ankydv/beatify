@@ -9,13 +9,33 @@ export const usePlaylistApi = () => {
    * structure: {playlists: [{ _id, name, songCount}, ...]}
    **/
 
-  const getPlaylists = async () => {
+  const getPlaylists = async (songId) => {
     try {
-      const res = await api.get(`${server}/api/playlists`);
+      const res = await api.get(`${server}/api/playlists`, songId ? { params: { songId } } : {});
       return res.data;
     } catch (error) {
       console.error("Error fetching playlists:", error.response?.data || error.message);
       throw error.response?.data || { message: "Failed to fetch playlists" };
+    }
+  };
+
+  const getIsAddedAnyPlaylist = async (songId) => {
+    try {
+      const res = await api.get(`${server}/api/playlists/`, { params: { songId, getIsAdded: true } });
+      return res.data.isAdded;
+    } catch (error) {
+      console.error("Error checking if song is added to any playlist:", error.response?.data || error.message);
+      throw error.response?.data || { message: "Failed to check song in playlists" };
+    }
+  };
+
+  const getPlaylistDetails = async (playlistId) => {
+    try {
+      const res = await api.get(`${server}/api/playlists/${playlistId}`);
+      return res.data;
+    } catch (error) {
+      console.error("Error fetching playlist details:", error.response?.data || error.message);
+      throw error.response?.data || { message: "Failed to fetch playlist details" };
     }
   };
 
@@ -59,5 +79,5 @@ export const usePlaylistApi = () => {
     }
   };
 
-  return { addSongToPlaylist, getPlaylists, addSongToMultiplePlaylists  };
+  return { addSongToPlaylist, getPlaylists, getIsAddedAnyPlaylist, addSongToMultiplePlaylists, getPlaylistDetails };
 };

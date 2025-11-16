@@ -1,32 +1,27 @@
 import { View } from "react-native";
 import { IconButton } from "react-native-paper";
-import { usePlaylistApi } from "../../hooks/library.hooks/playlist.hooks";
-import { useDispatch, useSelector } from "react-redux";
-import { useState } from "react";
+import {  useSelector } from "react-redux";
+import { useEffect, useState } from "react";
 import { useNavigation } from "expo-router";
+import { usePlaylistApi } from "../../hooks/library.hooks/playlist.hooks";
 
 export const AddToButton = () => {
-  const { addSongToPlaylist } = usePlaylistApi();
-  const { metadata } = useSelector((state) => state.audio);
+  const { metadata, songId } = useSelector((state) => state.audio);
   const [isAdded, setAdded] = useState(false);
-  const dispatch = useDispatch();
   const navation = useNavigation();
+  const { getIsAddedAnyPlaylist } = usePlaylistApi();
 
-  const handleAddToPlaylist = async () => {
-    try {
-      const res = await addSongToPlaylist({
-        song: metadata.videoDetails,
-        playlistName: "favorites",
-      });
-      setAdded(res.success);
-    } catch (error) {
-      console.log(error);
-    }
-  };
+  useEffect(() => {
+    const checkIfAdded = async () => {
+      if (!songId) return;
+      const added = await getIsAddedAnyPlaylist(songId);
+      setAdded(added);
+    };
+    checkIfAdded();
+  }, [songId]);
 
   const openAddToPlaylistModal = () => {
-    // dispatch(openModal(<AddToPlaylist />));
-    navation.navigate("addToPlaylist", { song: metadata.videoDetails });
+    navation.navigate("addToPlaylist", { song: metadata.videoDetails, songId });
   }
 
   return (

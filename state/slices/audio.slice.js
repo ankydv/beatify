@@ -16,6 +16,7 @@ const initialState = {
   isInitialized: false,
   error: null,
   lyrics: null,
+  songId: null,
 };
 
 // Thunk to initialize TrackPlayer
@@ -161,6 +162,9 @@ const audioSlice = createSlice({
     setLyrics(state, action){
       state.lyrics = action.payload;
     },
+    setSongId(state, action){
+      state.songId = action.payload;
+    },
     resetAudio(state) {
       state.isPlaying = false;
       state.lyrics=null;
@@ -194,5 +198,6 @@ export const {
   setIsInitialized,
   setMetadata,
   setLyrics,
+  setSongId,
 } = audioSlice.actions;
 export default audioSlice.reducer;
