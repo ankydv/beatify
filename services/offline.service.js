@@ -63,7 +63,6 @@ export const downloadTrack = async (
       {},
       (downloadProgress) => {
         const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-        console.log(downloadProgress.totalBytesWritten, downloadProgress.totalBytesExpectedToWrite);
         if (onProgress) {
           onProgress(Math.round(progress * 100));
         }
