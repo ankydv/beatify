@@ -11,7 +11,8 @@ import BlurImageBg from "../../../components/BlurImageBg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LoadingIndicator from "../../../components/LoadingIndicator";
 import {usePlaylistApi} from "@/hooks/library.hooks/playlist.hooks";
-
+import { useDispatch } from "react-redux";
+import { loadAndPlayTrack } from "@/state/slices/audio.slice";
 const Album = () => {
   const { id, isPlaylist, isUserPlaylist } = useLocalSearchParams();
   const [album, setAlbum] = useState();
@@ -20,6 +21,7 @@ const Album = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const navigation = useNavigation();
   const {getPlaylistDetails} = usePlaylistApi();
+  const dispatch = useDispatch();
 
   useEffect(() => {
     if(isUserPlaylist)
@@ -42,6 +44,16 @@ const Album = () => {
   if (!album) return (
     <LoadingIndicator />
   );
+
+  const onPress = () => {
+    dispatch(
+      loadAndPlayTrack({
+        track: album.tracks[0],
+        isQueueTrack: true,
+        newQueue: Object.assign({}, { tracks: album.tracks }),
+      }),
+    ).unwrap();
+  };
 
   return (
     <View>
@@ -75,13 +87,14 @@ const Album = () => {
                 padding: 12,
               }}
               color={theme.colors.background}
+              onPress={onPress}
             />
             <BubbleIcon color = {theme.colors.text} name="share" />
             <BubbleIcon color = {theme.colors.text} name={"more-vert"} />
           </View>
         </BlurImageBg>
         <View style={styles.musicListContainer}>
-          <MusicList dataset={album.tracks} />
+          <MusicList dataset={album.tracks} isQueue={true} />
         </View>
       </Animated.ScrollView>
       <SafeAreaView

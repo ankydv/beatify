@@ -43,6 +43,18 @@ export default function TabTwoScreen() {
     );
   };
 
+  const OfflineButton = () => {
+    return (
+      <Button
+        icon="download"
+        mode="outlined"
+        onPress={() => navigation.navigate("offline-library")}
+      >
+        Offline Library
+      </Button>
+    );
+  };
+
   if (!isSignedIn) {
     return (
       <SafeAreaView style={styles.container}>
@@ -56,7 +68,7 @@ export default function TabTwoScreen() {
           Login
         </Button>
         <UpdateButton />
-        
+        <OfflineButton />
       </SafeAreaView>
     );
   }
@@ -74,6 +86,7 @@ export default function TabTwoScreen() {
             <IconButton icon={'exit-to-app'} size={35} onPress={test}/>
           </View>
         </View>
+        <OfflineButton />
         <History />
         <Playlists />
       </SafeAreaView>

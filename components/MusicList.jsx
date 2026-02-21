@@ -11,7 +11,7 @@ const MusicList = ({ dataset, isQueue, onPress }) => {
 
   if(!onPress){
     onPress = (song) => {
-      dispatch(loadAndPlayTrack({ track: song, isQueueTrack: isQueue }));
+      dispatch(loadAndPlayTrack({ track: song, isQueueTrack: isQueue, newQueue: Object.assign({}, {tracks: dataset}) })).unwrap();
       if(!isQueue)
         navigation.navigate("player");
     }

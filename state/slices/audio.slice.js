@@ -6,6 +6,8 @@ import {fetchLyrics} from "@/services/lyrics.service";
 import { parseSyncedLyrics } from "@/utils/lyrics.utils";
 import { getQueue } from "@/services/queue.service";
 import { AppKilledPlaybackBehavior } from 'react-native-track-player';
+import { prepareTrackForPlayback } from "@/utils/offline.utils";
+import { getOfflineLyrics } from "@/services/offline.service";
 
 // Initial state
 const initialState = {
@@ -59,7 +61,7 @@ export const initializePlayer = createAsyncThunk(
 // Thunk to load a track and play it
 export const loadAndPlayTrack = createAsyncThunk(
   "audio/loadAndPlayTrack",
-  async ({track, isQueueTrack}, { dispatch, getState }) => {
+  async ({track, isQueueTrack, newQueue}, { dispatch, getState }) => {
     dispatch(resetAudio());
     try {
       if (!getState().audio.isInitialized) {
@@ -72,24 +74,65 @@ export const loadAndPlayTrack = createAsyncThunk(
       const md = new Metadata(metadata);
 
       await TrackPlayer.reset();
+      
+      // Prepare track with offline support
+      const streamingUrl = md.getStreamingUrl();
+      const trackForPlayback = await prepareTrackForPlayback(
+        track.videoId,
+        streamingUrl,
+        md.getTitle(),
+        md.getArtists(),
+        md.getThumb("mini").url
+      );
+
       const track1 = {
         id: 1,
-        url: md.getStreamingUrl(),
+        url: trackForPlayback.url,
         title: md.getTitle(),
         artist: md.getArtists(),
         artwork: md.getThumb("mini").url,
+        isOffline: trackForPlayback.isOffline,
       };
       await TrackPlayer.add([track1]);
       await TrackPlayer.play();
       dispatch(setCurrentTrack(track));
       dispatch(setIsPlaying(true));
-      const lyrics = await fetchLyrics(md.getArtists(), md.getTitle(), md.duration);
-      dispatch(setLyrics(parseSyncedLyrics(lyrics?.syncedLyrics)));
+
+      // Try to get offline lyrics first
+      let lyrics = null;
+      try {
+        const offlineLyrics = await getOfflineLyrics(track.videoId);
+        if (offlineLyrics) {
+          lyrics = offlineLyrics;
+        } else {
+          // If no offline lyrics, fetch from online
+          const fetchedLyrics = await fetchLyrics(md.getArtists(), md.getTitle(), md.duration);
+          lyrics = fetchedLyrics;
+        }
+      } catch (error) {
+        console.warn('Error fetching lyrics:', error);
+        // Try to fetch online as fallback
+        try {
+          const fetchedLyrics = await fetchLyrics(md.getArtists(), md.getTitle(), md.duration);
+          lyrics = fetchedLyrics;
+        } catch (fallbackError) {
+          console.warn('Fallback lyrics fetch also failed:', fallbackError);
+        }
+      }
+
+      if (lyrics) {
+        dispatch(setLyrics(parseSyncedLyrics(lyrics?.syncedLyrics)));
+      }
 
       // Fetch related tracks to update the queue
-      if(!isQueueTrack){
+      if(isQueueTrack){
+        if(newQueue){
+          dispatch(setQueue(newQueue));
+        }
+        else {
         const queueTracks = await getQueue(track.videoId);
         dispatch(setQueue(queueTracks));
+        }
       }
     } catch (error) {
       console.error("Error loading track:", error);
@@ -154,6 +197,7 @@ const audioSlice = createSlice({
       state.metadata = action.payload;
     },
     setQueue(state, action) {
+      console.log("Setting queue with tracks:", action.payload.tracks); // Log the tracks being set in the queue
       state.queue = action.payload;
     },
     setIsInitialized(state, action) {

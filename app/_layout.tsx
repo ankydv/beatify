@@ -102,7 +102,7 @@ function RootLayoutNav() {
                  presentation: "modal", // makes it slide up like a modal
                  animation: "slide_from_bottom",
               }} />
-
+              <Stack.Screen name="offline-library"/>
             </Stack>
             <EventListeners />
             <GlobalModal />

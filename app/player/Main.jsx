@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, Text, TouchableOpacity, View, Image, Dimensions } from "react-native";
 import Lyrics from "./Lyrics";
 import LyricsToggleButton from "../../components/LyricsToggleButton";
@@ -18,6 +18,9 @@ import { useTheme } from "react-native-paper";
 import MarqueeText from "../../components/MarqueeText";
 import LoadingIndicator from "../../components/LoadingIndicator";
 import AddToButton from "./AddToButton";
+//for offline
+import OfflineDownloadButton from "../../components/OfflineDownloadButton";
+import useOfflineTrack from "../../hooks/offline.hooks";
 
 const { width, height } = Dimensions.get("window");
 
@@ -26,11 +29,13 @@ const Main = ({setIsQueueVisible}) => {
   const { handleTogglePlayback } = useAudioControls();
   const dispatch = useDispatch();
 
-  const { metadata, lyrics } = useSelector((state) => state.audio);
+  const { metadata, lyrics, currentTrack } = useSelector((state) => state.audio);
   const [isLyricsVisible, setIsLyricsVisible] = useState(true);
   const md = new Metadata(metadata);
   const title = md.getTitle();
   const theme = useTheme();
+  // NEW: Get offline hook
+  const { getOfflineTrack } = useOfflineTrack();
 
   const toggleLyricsVisibility = () => {
     setIsLyricsVisible(!isLyricsVisible);
@@ -44,19 +49,42 @@ const Main = ({setIsQueueVisible}) => {
   }
   const thumb = height >= 700 ? md.getThumb("large") : md.getThumb("medium");
 
+  //State for offline track metadata
+  const [offlineTrackInfo, setOfflineTrackInfo] = useState(null);
+  
+    // Check offline metadata when current track changes
+    useEffect(() => {
+      const fetchOfflineInfo = async () => {
+        if (currentTrack?.videoId) {
+          const offlineInfo = await getOfflineTrack(currentTrack.videoId);
+          setOfflineTrackInfo(offlineInfo);
+        }
+      };
+      fetchOfflineInfo();
+    }, [currentTrack?.videoId, getOfflineTrack]);
+
   return (
     <>
       <View style={styles.albumArtContainer}>
         {!(isLyricsVisible && lyrics) && (
           <View style={styles.albumArtWrapper}>
-            {thumb && 
-            <Image
-              source={{ uri: thumb.url }}
-              style={[styles.albumArt, {
-                aspectRatio: thumb.width / thumb.height, 
-                width: thumb.width <= width ? thumb.width : '95%',
-              }]}
-            />}
+            {thumb && (
+              <Image
+                source={{ uri: thumb.url }}
+                style={[
+                  styles.albumArt,
+                  {
+                    aspectRatio: thumb.width / thumb.height,
+                    width: thumb.width <= width ? thumb.width : "95%",
+                  },
+                ]}
+              />
+            )}
+            {offlineTrackInfo && (
+              <View style={styles.offlineIndicator}>
+                <Text style={styles.offlineText}>Offline</Text>
+              </View>
+            )}
             {!thumb && <LoadingIndicator />}
           </View>
         )}
@@ -70,18 +98,34 @@ const Main = ({setIsQueueVisible}) => {
                 isLyricsVisible={isLyricsVisible}
                 onToggle={toggleLyricsVisibility}
               />
-            )
-              }
+            )}
           </View>
-          <View style={{ flexDirection: 'row', }}>
-            <View style={{ flex: 1, }}>
-              <MarqueeText style={[styles.title, styles.shadowText]}>{title}</MarqueeText>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View style={{ flex: 1 }}>
+              <MarqueeText style={[styles.title, styles.shadowText]}>
+                {title}
+              </MarqueeText>
               <MarqueeText
-                style={[styles.artist, styles.shadowText, { textShadowRadius: 1 }]}
+                style={[
+                  styles.artist,
+                  styles.shadowText,
+                  { textShadowRadius: 1 },
+                ]}
               >
                 {md.getArtists()}
               </MarqueeText>
             </View>
+            {metadata && currentTrack && (
+              <OfflineDownloadButton
+                videoId={currentTrack.videoId}
+                streamingUrl={new Metadata(metadata).getStreamingUrl()}
+                title={new Metadata(metadata).getTitle()}
+                artist={new Metadata(metadata).getArtists()}
+                artwork={new Metadata(metadata).getThumb("mini").url}
+                duration={new Metadata(metadata).getDuration?.()}
+                lyrics={lyrics}
+              />
+            )}
             <AddToButton />
           </View>
         </View>
@@ -93,30 +137,38 @@ const Main = ({setIsQueueVisible}) => {
             <MaterialIcons name="skip-previous" size={35} color="white" />
           </TouchableOpacity>
           <View>
-            <BubbleIcon name={playback.state == State.Playing ? "pause" : 'play-arrow'}
+            <BubbleIcon
+              name={playback.state == State.Playing ? "pause" : "play-arrow"}
               size={45}
               onPress={handleTogglePlayback}
-               />
-            {playback.state == State.Buffering && 
-              <ActivityIndicator size={60} color='white' style={{position: 'absolute', opacity: 0.8}} />
-            }
+            />
+            {playback.state == State.Buffering && (
+              <ActivityIndicator
+                size={60}
+                color="white"
+                style={{ position: "absolute", opacity: 0.8 }}
+              />
+            )}
           </View>
           <TouchableOpacity onPress={handleNext}>
             <MaterialIcons name="skip-next" size={35} color="white" />
           </TouchableOpacity>
         </View>
-        <View style={[styles.controls, {marginTop: 10}]}>
+        <View style={[styles.controls, { marginTop: 10 }]}>
           {/* Share Button */}
-          <BubbleIcon name={'share'} disabled={false} />
+          <BubbleIcon name={"share"} disabled={false} />
 
           {/* Sleep Timer Button */}
-          <BubbleIcon name={'timer'} disabled={true} />
+          <BubbleIcon name={"timer"} disabled={true} />
 
           {/* Queue Button */}
-          <BubbleIcon name={'queue-music'} onPress={() => setIsQueueVisible(true)}/>
+          <BubbleIcon
+            name={"queue-music"}
+            onPress={() => setIsQueueVisible(true)}
+          />
 
           {/* Menu Button */}
-          <BubbleIcon name={'more-horiz'} disabled={true} />
+          <BubbleIcon name={"more-horiz"} disabled={true} />
         </View>
       </View>
     </>
@@ -146,6 +198,20 @@ const styles = StyleSheet.create({
   infoContainer: {
     width: "100%",
     padding: 5,
+  },
+  offlineIndicator: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  offlineText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   togglesContainer: {
     flexDirection: "row",
