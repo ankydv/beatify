@@ -1,4 +1,5 @@
 export const parseSyncedLyrics = (syncedLyrics) => {
+  console.log("Parsing synced lyrics:", syncedLyrics);
     if(!syncedLyrics) return null;
     const lyricsArray = syncedLyrics.split('\n').map((line) => {
       const match = line.match(/\[(\d{2}):(\d{2})\.(\d{2})\]\s*(.*)/);
@@ -15,6 +16,6 @@ export const parseSyncedLyrics = (syncedLyrics) => {
       }
       return null;
     });
-  
-    return lyricsArray.filter((line) => line !== null); // Filter out null values
+    const lrc = lyricsArray.filter((line) => line !== null); // Filter out null values
+    return lrc.length > 0 ? lrc : null; // Return null if no valid lyrics found
   };
