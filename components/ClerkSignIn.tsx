@@ -3,7 +3,6 @@ import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
 import { useSSO } from "@clerk/clerk-expo";
 import { Alert, View } from "react-native";
-import { Button } from "react-native-paper";
 import GoogleSignInButton from "./GoogleSignInButton";
 import { closeModal } from "@/state/slices/modal.slice";
 import { useDispatch } from "react-redux";

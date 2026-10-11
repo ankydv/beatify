@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { Touchable, View } from "react-native";
-import { FlatList } from "react-native";
+import { View } from "react-native";
 import { IconButton, Surface, Text, Divider, TouchableRipple } from "react-native-paper";
 import { usePlaylistApi } from "../../hooks/library.hooks/playlist.hooks";
 import { useRouter } from "expo-router";
@@ -59,15 +58,17 @@ const Playlists = () => {
 
   
   return (
-    <>
+    <View>
       <Text variant="titleLarge" style={{marginTop: 20}} >My Playlists</Text>
-      <FlatList
-        data={playlists}
-        renderItem={renderPlaylistItem}
-        keyExtractor={(item) => item.id}
-        ItemSeparatorComponent={() => <Divider />}
-      />
-    </>
+      <View style={{ marginTop: 8 }}>
+        {playlists?.map((item, index) => (
+          <View key={item.id ?? index}>
+            {renderPlaylistItem({ item })}
+            {index < playlists.length - 1 && <Divider />}
+          </View>
+        ))}
+      </View>
+    </View>
   );
 };
 export default Playlists;

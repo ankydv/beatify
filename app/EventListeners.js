@@ -1,4 +1,3 @@
-import { loadAuthState } from "@/state/slices/auth.slice";
 import { setSongId } from "@/state/slices/audio.slice";
 import {
   useNavigation,
@@ -7,12 +6,12 @@ import {
 import { useEffect } from "react";
 import { Linking } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
-import { initializeSocket, socket } from "@/configs/socket";
+import { socket } from "@/configs/socket";
 import useAppUpdater from "@/hooks/updater.hooks";
 import getVisitorData from "@/services/visitorData.service";
 import {useHistoryApi} from "@/hooks/library.hooks/history.hooks";
 import { useAuth } from "@clerk/clerk-expo";
-import {useAppUpdate} from "@/hooks/otaUpdate.hooks"
+import {useAppUpdate} from "@/hooks/otaUpdate.hooks";
 
 
 const EventListeners = () => {
@@ -43,17 +42,6 @@ const EventListeners = () => {
     };
     Linking.addEventListener("url", handleUrl);
 
-    const setupSocket = async () => {
-      await initializeSocket();
-
-      socket.on("connect", () => {
-        console.log("Socket connected:", socket.id);
-      });
-
-      socket.on("disconnect", () => {
-        console.log("Socket disconnected");
-      });
-    };
     if (!__DEV__) {
       console.log = () => {};
       console.warn = () => {};
@@ -74,10 +62,6 @@ const EventListeners = () => {
   const dispatch = useDispatch();
 
   useEffect(() => {
-    dispatch(loadAuthState());
-  }, [dispatch]);
-
-  useEffect(() => {
     if (metadata && isSignedIn) {
       addToHistory(metadata).then((res) => {
         dispatch(setSongId(res.history.song));
@@ -85,7 +69,7 @@ const EventListeners = () => {
         console.error("Failed to add track to history:", err);
       });
     }
-  }, [metadata]);
+  }, [metadata, isSignedIn, addToHistory, dispatch]);
 
   return null;
 };

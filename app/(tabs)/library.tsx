@@ -1,7 +1,7 @@
 import { Image, ScrollView, StyleSheet, View } from "react-native";
 import { openModal } from "@/state/slices/modal.slice";
 import { useDispatch } from "react-redux";
-import SignInWithYouTube from "@/components/ClerkSignIn";
+import ClerkSignIn from "@/components/ClerkSignIn";
 import { useState } from "react";
 import { useNavigation } from "expo-router";
 import { Button, Text, useTheme,IconButton } from "react-native-paper";
@@ -20,14 +20,14 @@ export default function TabTwoScreen() {
   const { colors } = useTheme();
   const [isLoading, setIsLoading] = useState(false);
 
-  const test = async () => {
+  const handleAuthPress = async () => {
     if (isSignedIn) {
       setIsLoading(true);
       await signOut();
       setIsLoading(false);
       return;
     }
-    dispatch(openModal(<SignInWithYouTube />));
+    dispatch(openModal(<ClerkSignIn />));
   };
 
   const UpdateButton = () => {
@@ -63,7 +63,7 @@ export default function TabTwoScreen() {
           loading={isLoading}
           icon="login"
           mode="contained"
-          onPress={test}
+          onPress={handleAuthPress}
         >
           Login
         </Button>
@@ -83,7 +83,7 @@ export default function TabTwoScreen() {
             <Text variant="titleLarge" style={styles.title}>{name}</Text>
           </View>
           <View>
-            <IconButton icon={'exit-to-app'} size={35} onPress={test}/>
+            <IconButton icon={'exit-to-app'} size={35} onPress={handleAuthPress}/>
           </View>
         </View>
         <OfflineButton />

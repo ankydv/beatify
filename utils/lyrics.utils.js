@@ -1,5 +1,5 @@
 export const parseSyncedLyrics = (syncedLyrics) => {
-  console.log("Parsing synced lyrics:", syncedLyrics);
+  //console.log("Parsing synced lyrics:", syncedLyrics);
     if(!syncedLyrics) return null;
     const lyricsArray = syncedLyrics.split('\n').map((line) => {
       const match = line.match(/\[(\d{2}):(\d{2})\.(\d{2})\]\s*(.*)/);

@@ -163,18 +163,10 @@ const player = async (videoId) => {
 
   const visitorData = await ensureVisitorData();
 
-  // Google OAuth token (from Sign in with YouTube). When present it is sent
-  // as `Authorization: Bearer` on every player request so YouTube treats us
-  // as a signed-in session instead of a bot.
-  let oauthToken = null;
-  try {
-    const { tokenManager } = await import('@/utils/token.utils');
-    const { refreshToken } = await import('@/services/auth.service');
-    await refreshToken('google');
-    oauthToken = await tokenManager.getGoogleAccessToken();
-  } catch (error) {
-    console.warn('[metadata] OAuth token unavailable:', error?.message || error);
-  }
+  // Unauthenticated InnerTube playback. YouTube may still rate-limit
+  // some clients ("Sign in to confirm you're not a bot"); visitorData
+  // + client rotation is the mitigation.
+  const oauthToken = null;
 
   let lastError = null;
 
