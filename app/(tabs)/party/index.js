@@ -34,12 +34,12 @@ const Test = () => {
         keyboardType="numeric"
         maxLength={4}
         error={error}
-        // onSubmitEditing={handlePress}
+         onSubmitEditing={handlePress}
         mode="outlined"
       />
       <Button 
         mode="contained" 
-        // onPress={handlePress}
+         onPress={handlePress}
         style={[styles.button]}
       >
         Enter Party Room (Coming Soon)

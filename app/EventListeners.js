@@ -6,7 +6,7 @@ import {
 import { useEffect } from "react";
 import { Linking } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
-import { socket } from "@/configs/socket";
+import { disconnectSocket, initializeSocket, socket } from "@/configs/socket";
 import useAppUpdater from "@/hooks/updater.hooks";
 import getVisitorData from "@/services/visitorData.service";
 import {useHistoryApi} from "@/hooks/library.hooks/history.hooks";
@@ -20,7 +20,7 @@ const EventListeners = () => {
   const { checkForUpdates } = useAppUpdater();
   const { metadata } = useSelector((state) => state.audio);
   const { addToHistory } = useHistoryApi();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, getToken } = useAuth();
 
   useAppUpdate();
 
@@ -48,16 +48,40 @@ const EventListeners = () => {
       checkForUpdates();
       console.log(__DEV__);
     }
-    // setupSocket();
-    
-
     return () => {
-      if (socket) {
-        socket.disconnect();
-        console.log("Socket disconnected");
-      }
+      disconnectSocket();
+      console.log("Socket disconnected");
     };
   }, []);
+
+  // Auth-aware socket lifecycle: (re)connect with a fresh Clerk token
+  // whenever the user signs in; disconnect on sign-out.
+  useEffect(() => {
+    if (!isSignedIn) {
+      disconnectSocket();
+      return;
+    }
+
+    const onSocketConnect = () => {
+      console.log("Socket connected:", socket.id);
+    };
+
+    const onSocketDisconnect = () => {
+      console.log("Socket disconnected");
+    };
+
+    socket.on("connect", onSocketConnect);
+    socket.on("disconnect", onSocketDisconnect);
+
+    initializeSocket(() => getToken()).catch((err) => {
+      console.warn("[socket] initialize failed:", err?.message ?? err);
+    });
+
+    return () => {
+      socket.off("connect", onSocketConnect);
+      socket.off("disconnect", onSocketDisconnect);
+    };
+  }, [isSignedIn, getToken]);
 
   const dispatch = useDispatch();
 
