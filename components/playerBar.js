@@ -48,7 +48,10 @@ const PlayerBar = () => {
 
   return (
     <Pressable onPress={handlePress} style={[styles.container, {borderColor: theme.colors.border, backgroundColor: theme.colors.surface}]}>
-      <Image source={{ uri: md.getThumb("mini").url}} style={styles.image} />
+      <Image
+        source={{ uri: md.getThumb("mini")?.url || md.getThumb("medium")?.url }}
+        style={styles.image}
+      />
       <View style={styles.textContainer}>
         <Text variant="titleMedium" style={[styles.title]} numberOfLines={1}>
           {md.getTitle()}

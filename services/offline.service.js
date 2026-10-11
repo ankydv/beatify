@@ -30,12 +30,15 @@ const generateTrackFilename = (videoId, title) => {
   return `${videoId}_${sanitizedTitle}.m4a`;
 };
 
-// Download track from streaming URL
+// Download track from streaming URL.
+// googlevideo 403s unless a browser UA + Range headers are sent, so we
+// always attach them (FileSystem.createDownloadResumable supports headers).
 export const downloadTrack = async (
   streamingUrl,
   videoId,
   trackTitle,
-  onProgress
+  onProgress,
+  extraHeaders = {}
 ) => {
   try {
     await ensureOfflineDirectoryExists();
@@ -56,11 +59,33 @@ export const downloadTrack = async (
 
     console.log('Starting download:', filename);
 
+    // Re-fetch a fresh playable URL if none was passed (cached ones expire).
+    let url = streamingUrl;
+    let headers = {
+      // Must match the InnerTube client UA (IOS) — see metadata.utils.
+      'User-Agent':
+        'com.google.ios.youtube/20.11.6 (iPhone10,4; U; CPU iOS 16_7_7 like Mac OS X)',
+      Range: 'bytes=0-',
+      ...extraHeaders,
+    };
+    if (!url) {
+      const getMetadata = (await import('@/services/metadata.service'))
+        .default;
+      const Metadata = (await import('@/utils/metadata.utils')).default;
+      const { getStreamHeaders } = await import('@/utils/metadata.utils');
+      const metadata = await getMetadata(videoId);
+      const md = new Metadata(metadata);
+      const details = md.getPlayableFormatDetails();
+      url = details?.url || md.getStreamingUrl();
+      headers = details?.headers || getStreamHeaders(videoId);
+      if (!url) throw new Error(`No playable stream found for ${videoId}`);
+    }
+
     // Create a download task with progress tracking
     const downloadTask = FileSystem.createDownloadResumable(
-      streamingUrl,
+      url,
       downloadDest,
-      {},
+      { headers },
       (downloadProgress) => {
         const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
         if (onProgress) {

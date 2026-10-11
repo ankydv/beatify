@@ -27,6 +27,7 @@ import useOfflineTrack from '@/hooks/offline.hooks';
 const OfflineDownloadButton = ({
   videoId,
   streamingUrl,
+  streamHeaders = {},
   title,
   artist,
   artwork,
@@ -89,14 +90,16 @@ const OfflineDownloadButton = ({
           ]
         );
       } else {
-        // Download for offline
+        // Download for offline (fresh URL + browser headers so googlevideo
+        // doesn't 403; downloadTrack re-fetches if the URL expired).
         await downloadForOffline(
           streamingUrl,
           videoId,
           title,
           artist,
           artwork,
-          duration
+          duration,
+          streamHeaders
         );
 
         // Save lyrics offline if available

@@ -2,13 +2,13 @@ class Track {
     
     constructor(track) {
       this.track = track;
-      this.title = track.title;
-      this.album = track.album;
+      this.title = track?.title;
+      this.album = track?.album;
       this.artists = this.getArtists();
     }
   
     getArtists() {
-        const artists = this.track.artists;
+        const artists = this.track?.artists;
         if(!artists || artists.length === 0)
             return '';
         return artists.map(artist => artist.name).join(' ');

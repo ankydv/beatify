@@ -28,7 +28,7 @@ export const useOfflineTrack = () => {
 
   // Download and save a track for offline use
   const downloadForOffline = useCallback(
-    async (streamingUrl, videoId, title, artist, artwork, duration) => {
+    async (streamingUrl, videoId, title, artist, artwork, duration, streamHeaders = {}) => {
       setIsDownloading(true);
       setDownloadProgress(0);
 
@@ -40,7 +40,8 @@ export const useOfflineTrack = () => {
           title,
           (progress) => {
             setDownloadProgress(progress);
-          }
+          },
+          streamHeaders
         );
 
         // Save metadata

@@ -1,0 +1,5 @@
+# Exclude environment and secret files
+.env
+.env.*
+*.env
+secrets/

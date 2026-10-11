@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import TrackPlayer, { Capability } from "react-native-track-player";
 import getMetadata from "@/services/metadata.service";
-import Metadata from "@/utils/metadata.utils";
+import Metadata, { logPlayableUrl } from "@/utils/metadata.utils";
 import {fetchLyrics} from "@/services/lyrics.service";
 import { parseSyncedLyrics } from "@/utils/lyrics.utils";
 import { getQueue } from "@/services/queue.service";
@@ -69,29 +69,61 @@ export const loadAndPlayTrack = createAsyncThunk(
         await dispatch(initializePlayer()).unwrap(); // Ensures the initialization is complete
       }
       const metadata = await getMetadata(track.videoId);
-      metadata.videoDetails.author = metadata.videoDetails.author.replace(/\s*-\s*topic$/i, "");
+      if (metadata?.videoDetails?.author) {
+        metadata.videoDetails.author = metadata.videoDetails.author.replace(/\s*-\s*topic$/i, "");
+      }
       dispatch(setMetadata(metadata));
       const md = new Metadata(metadata);
 
       await TrackPlayer.reset();
-      
-      // Prepare track with offline support
-      const streamingUrl = md.getStreamingUrl();
+
+      // Use the decoded, validated format + the headers googlevideo needs.
+      // Proven by live probe (scripts/diag-streams.cjs): bare GET -> 403,
+      // UA + Range -> 206. TrackPlayer/ExoPlayer MUST send the same UA the
+      // InnerTube client used (IOS), otherwise googlevideo rejects the
+      // stream even though the URL is valid.
+      const details = md.getPlayableFormatDetails();
+      const streamingUrl = details?.url || md.getStreamingUrl();
+      if (!streamingUrl) {
+        throw new Error(`No playable stream found for "${md.getTitle()}"`);
+      }
+      // Test hook: copy the URL from Metro/logcat into a browser on the SAME
+      // device/IP before expiry. googlevideo sigs are IP-bound — a URL
+      // fetched on the phone will 403 on your laptop and vice versa.
+      logPlayableUrl(details, track.videoId, 'loadAndPlayTrack');
+      const streamHeaders =
+        details?.headers || metadata?._streamHeaders || undefined;
+      const contentType = details?.mimeType
+        ? details.mimeType.split(';')[0].trim()
+        : 'audio/mp4';
+      const artwork =
+        md.getThumb("mini")?.url || md.getThumb("medium")?.url || undefined;
       const trackForPlayback = await prepareTrackForPlayback(
         track.videoId,
         streamingUrl,
         md.getTitle(),
         md.getArtists(),
-        md.getThumb("mini").url
+        artwork
       );
 
       const track1 = {
-        id: 1,
+        id: track.videoId,
         url: trackForPlayback.url,
         title: md.getTitle(),
         artist: md.getArtists(),
-        artwork: md.getThumb("mini").url,
+        artwork,
         isOffline: trackForPlayback.isOffline,
+        // Only attach network headers for remote streams, not local files.
+        // userAgent MUST equal headers['User-Agent'] (IOS client UA) — a
+        // mismatched UA (e.g. Chrome default) makes googlevideo 403 the
+        // stream even though the URL is valid.
+        ...(trackForPlayback.isOffline
+          ? {}
+          : {
+              headers: streamHeaders,
+              contentType,
+              userAgent: streamHeaders?.['User-Agent'],
+            }),
       };
       await TrackPlayer.add([track1]);
       await TrackPlayer.play();
@@ -99,6 +131,15 @@ export const loadAndPlayTrack = createAsyncThunk(
       dispatch(setIsPlaying(true));
 
       // Try to get offline lyrics first
+      // Duration: md.duration is 0 unless getStreamingUrl() ran. Derive it from
+      // InnerTube metadata so the lyrics duration filter actually works.
+      const durationSec =
+        Number(metadata?.videoDetails?.lengthSeconds) ||
+        Math.round(Number(details?.approxDurationMs) / 1000) ||
+        0;
+      const rawAlbum = md.getAlbum?.();
+      const albumName =
+        rawAlbum && rawAlbum !== 'Unknown Album' ? rawAlbum : undefined;
       let lyrics = null;
       try {
         const offlineLyrics = await getOfflineLyrics(track.videoId);
@@ -106,17 +147,17 @@ export const loadAndPlayTrack = createAsyncThunk(
           lyrics = offlineLyrics;
         } else {
           // If no offline lyrics, fetch from online
-          const fetchedLyrics = await fetchLyrics(md.getArtists(), md.getTitle(), md.duration);
+          const fetchedLyrics = await fetchLyrics(md.getArtists(), md.getTitle(), durationSec, albumName);
           lyrics = fetchedLyrics;
         }
       } catch (error) {
-        console.warn('Error fetching lyrics:', error);
+        console.warn('Error fetching lyrics:', error?.message || error);
         // Try to fetch online as fallback
         try {
-          const fetchedLyrics = await fetchLyrics(md.getArtists(), md.getTitle(), md.duration);
+          const fetchedLyrics = await fetchLyrics(md.getArtists(), md.getTitle(), durationSec, albumName);
           lyrics = fetchedLyrics;
         } catch (fallbackError) {
-          console.warn('Fallback lyrics fetch also failed:', fallbackError);
+          console.warn('Fallback lyrics fetch also failed:', fallbackError?.message || fallbackError);
         }
       }
 
@@ -197,7 +238,7 @@ const audioSlice = createSlice({
       state.metadata = action.payload;
     },
     setQueue(state, action) {
-      console.log("Setting queue with tracks:", action.payload.tracks); // Log the tracks being set in the queue
+     // console.log("Setting queue with tracks:", action.payload.tracks); // Log the tracks being set in the queue
       state.queue = action.payload;
     },
     setIsInitialized(state, action) {

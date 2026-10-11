@@ -1,0 +1,4 @@
+# Security Rules
+- NEVER read, edit, grep, or reference any `.env`, `.env.*`, or credential files.
+- NEVER run terminal commands that display environment variables (`env`, `printenv`, `export`, `cat .env`).
+- If you need environment variables to configure code, reference `.env.example` only or ask for dummy variable names.

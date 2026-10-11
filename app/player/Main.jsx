@@ -119,9 +119,12 @@ const Main = ({setIsQueueVisible}) => {
               <OfflineDownloadButton
                 videoId={currentTrack.videoId}
                 streamingUrl={new Metadata(metadata).getStreamingUrl()}
+                streamHeaders={
+                  new Metadata(metadata).getPlayableFormatDetails()?.headers
+                }
                 title={new Metadata(metadata).getTitle()}
                 artist={new Metadata(metadata).getArtists()}
-                artwork={new Metadata(metadata).getThumb("mini").url}
+                artwork={new Metadata(metadata).getThumb("mini")?.url}
                 duration={new Metadata(metadata).getDuration?.()}
                 lyrics={lyrics}
               />
