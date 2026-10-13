@@ -50,10 +50,13 @@ const PartyRoom = ({ onToggleMic= () =>{} }) => {
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
 
-  // Toggle mute/unmute
+  // Toggle mute/unmute (wired to WebRTC local tracks via `muted` prop)
   const handleMicToggle = () => {
-    setIsMuted(!isMuted);
-    onToggleMic(!isMuted);
+    setIsMuted((prev) => {
+      const next = !prev;
+      onToggleMic(next);
+      return next;
+    });
   };
 
   const handleLeaveRoom = useCallback(() =>{
@@ -374,7 +377,16 @@ const PartyRoom = ({ onToggleMic= () =>{} }) => {
         </TouchableOpacity>
       </View>
       </View>
-      {/* <WebRTCClient roomId={roomId}/> */}
+      {/* Voice (WebRTC mesh, audio-only). Mounted only after join so
+          roomId + participants are ready. Hidden 1x1 views play audio;
+          mute is wired to local mic tracks. */}
+      {!isJoining && roomId ? (
+        <WebRTCClient
+          roomId={roomId}
+          participantsList={participantsList}
+          muted={isMuted}
+        />
+      ) : null}
       </View>
     </SafeAreaView>
   );

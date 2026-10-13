@@ -17,6 +17,7 @@ adb -s emulator-5554 install -r $apk 2>&1 | Tee-Object -FilePath $log -Append
 Write-Host "Step 3/3: Setting up reverse proxy + starting Metro for live reload..."
 adb -s emulator-5554 reverse tcp:8081 tcp:8081 2>&1 | Tee-Object -FilePath $log -Append
 adb -s emulator-5554 reverse tcp:19000 tcp:19000 2>&1 | Tee-Object -FilePath $log -Append
+adb -s emulator-5554 reverse tcp:9001 tcp:9001 2>&1 | Tee-Object -FilePath $log -Append
 adb -s emulator-5554 shell am start -n com.ankydv.beatify/com.ankydv.beatify.MainActivity 2>&1 | Tee-Object -FilePath $log -Append
 Write-Host "Starting Expo dev server (leave this window open)..."
 npx expo start --dev-client 2>&1 | Tee-Object -FilePath $log -Append
