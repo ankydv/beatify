@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import axios from 'axios';
 import { usePartyDj } from '@/hooks/partyDj.hooks';
@@ -54,7 +54,7 @@ export default function PartySearch({ roomId }) {
   };
 
   return (
-    <View>
+    <ScrollView>
       <View style={styles.searchRow}>
         <TextInput
           style={styles.input}
@@ -94,7 +94,7 @@ export default function PartySearch({ roomId }) {
       })}
       {!searching && !results.length ? <Text style={styles.empty}>Search to add or request songs</Text> : null}
       {addError ? <Text style={styles.err}>{addError}</Text> : null}
-    </View>
+    </ScrollView>
   );
 }
 
