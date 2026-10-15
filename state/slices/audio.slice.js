@@ -62,6 +62,24 @@ export const initializePlayer = createAsyncThunk(
 export const loadAndPlayTrack = createAsyncThunk(
   "audio/loadAndPlayTrack",
   async ({track, isQueueTrack, newQueue}, { dispatch, getState }) => {
+    // ROOM GUARD: the shared TrackPlayer is the room's player while a voice
+    // room owns audio. Loading a personal track here would reset() the room's
+    // queue and hijack it for everyone on this device (DJ included). The DJ
+    // drives the room through dj:* socket commands instead.
+    try {
+      const { roomOwnsAudio } = await import("@/utils/partyPlayback.utils");
+      if (roomOwnsAudio()) {
+        const partySlice = await import("@/state/slices/party.slice");
+        // Transient notice (auto-cleared) so the tap doesn't feel broken.
+        dispatch(partySlice.setError("The room is playing — only the DJ can change the track"));
+        setTimeout(() => {
+          try {
+            dispatch(partySlice.setError(null));
+          } catch (e) {}
+        }, 4000);
+        return;
+      }
+    } catch (e) {}
     dispatch(resetAudio());
     try {
       if (!getState().audio.isInitialized) {
@@ -188,6 +206,13 @@ const getCurrentTrackIndex = () => {
 export const playNextTrack = createAsyncThunk(
   'audio/playNextTrack',
   async (_, { dispatch, getState }) => {
+    // ROOM GUARD: while a room owns the player a local skip would desync this
+    // device from the DJ. Route it through the room instead — DJ advances the
+    // whole room, listener taps are swallowed.
+    try {
+      const { partyStep } = await import('@/utils/partyPlayback.utils');
+      if (await partyStep(1)) return;
+    } catch (e) {}
     const state = getState();
     const { queue, currentTrack } = state.audio;
     // Find the index of the current track in the queue
@@ -207,6 +232,11 @@ export const playNextTrack = createAsyncThunk(
 export const playPrevTrack = createAsyncThunk(
   'audio/playNextTrack',
   async (_, { dispatch, getState }) => {
+    // ROOM GUARD — see playNextTrack.
+    try {
+      const { partyStep } = await import('@/utils/partyPlayback.utils');
+      if (await partyStep(-1)) return;
+    } catch (e) {}
     const state = getState();
     const { queue, currentTrack } = state.audio;
     // Find the index of the current track in the queue

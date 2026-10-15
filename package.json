@@ -12,7 +12,10 @@
     "build-dev": "npx eas build --profile development --platform android"
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/$1"
+    }
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.9.6",

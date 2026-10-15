@@ -19,6 +19,11 @@ import { useAuth } from '@clerk/clerk-expo';
 import ChatComponent from './chat';
 import WebRTCClient from './webRTC';
 import LoadingIndicator from '@/components/LoadingIndicator';
+import DJPanel from './DJPanel';
+import { usePartyPlayback, restorePersonalTrack } from '@/services/party.service';
+import { usePartyRekey } from '@/hooks/partyRekey.hooks';
+import { useDispatch } from 'react-redux';
+import { resetParty, setRoom } from '@/state/slices/party.slice';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const NUM_COLUMNS = 3;
@@ -35,6 +40,19 @@ const PartyRoom = ({ onToggleMic= () =>{} }) => {
   const [joinError, setJoinError] = useState(null);
   const [isRejoining, setIsRejoining] = useState(false);
   const { roomId } = useLocalSearchParams();
+  const reduxDispatch = useDispatch();
+  const joinedParty = !isJoining && !joinError && roomId;
+  usePartyPlayback({ roomId, enabled: !!joinedParty });
+  usePartyRekey({ roomId, enabled: !!joinedParty });
+  useEffect(() => {
+    if (roomId) reduxDispatch(setRoom(roomId));
+    return () => {
+      // Restore the user's own PlayerScreen / bottom-bar track; the room
+      // only ever mirrored into audio.currentTrack, personal queue untouched.
+      restorePersonalTrack(reduxDispatch);
+      reduxDispatch(resetParty());
+    };
+  }, [roomId, reduxDispatch]);
   const peerConnectionRef = useRef(null);
   const mountedRef = useRef(true);
   const joinAttemptRef = useRef(0);
@@ -353,6 +371,8 @@ const PartyRoom = ({ onToggleMic= () =>{} }) => {
       />
       {/* Bottom block: Chat + Voice Controls pinned to bottom */}
       <View style={styles.bottomSection}>
+      {/* Shared listening (DJ queue + requests + search) */}
+      {!isJoining && roomId ? <DJPanel roomId={roomId} /> : null}
       {/* Chat */}
       <ChatComponent roomId={roomId}/>
       {/* Voice Controls */}

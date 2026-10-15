@@ -12,6 +12,7 @@ import {
 } from "react-native-track-player";
 import { useDispatch, useSelector } from "react-redux";
 import { playNextTrack, playPrevTrack } from "@/state/slices/audio.slice.js"
+import { partyStep } from "@/utils/partyPlayback.utils";
 import BubbleIcon from "../../components/BubbleIcon";
 import { ActivityIndicator } from "react-native-paper";
 import { useTheme } from "react-native-paper";
@@ -40,11 +41,14 @@ const Main = ({setIsQueueVisible}) => {
   const toggleLyricsVisibility = () => {
     setIsLyricsVisible(!isLyricsVisible);
   };
-  const handlePrev = () => {
+  const handlePrev = async () => {
+    // Room owns the player: DJ steps the ROOM queue, listeners are swallowed.
+    if (await partyStep(-1)) return;
     dispatch(playPrevTrack());
   }
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    if (await partyStep(1)) return;
     dispatch(playNextTrack());
   }
   const thumb = height >= 700 ? md.getThumb("large") : md.getThumb("medium");

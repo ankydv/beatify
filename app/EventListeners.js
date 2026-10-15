@@ -87,6 +87,9 @@ const EventListeners = () => {
 
   useEffect(() => {
     if (metadata && isSignedIn) {
+      // Party-mirrored room tracks carry no _playableFormat (synthetic
+      // metadata built from the DJ bundle) — never write those to history.
+      if (metadata?._playableFormat == null && metadata?.videoDetails?.isPartyMirror) return;
       addToHistory(metadata).then((res) => {
         dispatch(setSongId(res.history.song));
       }).catch((err) => {

@@ -242,10 +242,16 @@ const player = async (videoId) => {
       
     } catch (error) {
       lastError = error;
-      console.warn(
-        `[metadata] ${client.clientName} request failed:`,
-        error?.message || error
-      );
+      // Single-client failures (e.g. transient IOS 400 / bot-wall) are
+      // EXPECTED — the loop falls through to the next client. Keep this
+      // quiet so a successful fallback doesn't look like an error in logs.
+      // The final throw below stays loud when ALL clients fail.
+      if (__DEV__) {
+        console.log(
+          `[metadata] ${client.clientName} request failed (trying next client):`,
+          error?.message || error
+        );
+      }
     }
   }
 

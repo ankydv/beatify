@@ -10,6 +10,7 @@ import TrackPlayer, {
 import Track from "@/utils/track.utils";
 import { useNavigation } from "expo-router";
 import Metadata from "@/utils/metadata.utils";
+import { partyTogglePlayback } from "@/utils/partyPlayback.utils";
 
 const PlayerBar = () => {
   const navigation = useNavigation();
@@ -26,6 +27,8 @@ const PlayerBar = () => {
     navigation.navigate("player");
   };
   const togglePlayBack = async () => {
+    // In a voice room, route to the room (DJ controls / listener no-op).
+    if (await partyTogglePlayback()) return;
     const currentTrack = await TrackPlayer.getActiveTrackIndex();
     if (currentTrack >= 0) {
       if ((playback.state == State.Paused) | (playback.state == State.Ready)) {

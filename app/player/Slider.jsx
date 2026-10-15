@@ -2,10 +2,18 @@ import Slider from "@react-native-community/slider";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import TrackPlayer from "react-native-track-player";
+import { useSelector } from "react-redux";
 import useTrackProgress from "../../hooks/track.hooks";
+import {
+  partySeek,
+  selectIsListenerLocked,
+} from "@/utils/partyPlayback.utils";
 
 const SliderAndTime = () => {
   const { position, duration, buffered, setProgress } = useTrackProgress();
+  // While the room owns audio and we are NOT the DJ, the playhead belongs to
+  // the DJ — grey the scrubber out instead of offering a control that is a no-op.
+  const listenerLocked = useSelector(selectIsListenerLocked);
 
   const formatTime = (timeSeconds) => {
     const minutes = Math.floor(timeSeconds / 60);
@@ -15,6 +23,9 @@ const SliderAndTime = () => {
   };
 
   const handleSlidingComplete = async (value) => {
+    // Room-owned audio: DJ seeks the whole room via the socket, listeners are
+    // swallowed. Never call TrackPlayer.seekTo directly here.
+    if (await partySeek(value)) return;
     try {
       await TrackPlayer.seekTo(value);
       setProgress((prev) => ({ ...prev, position: value }));
@@ -45,6 +56,7 @@ const SliderAndTime = () => {
         minimumTrackTintColor={"white"}
         maximumTrackTintColor={"white"}
         thumbTintColor={"white"}
+        disabled={listenerLocked}
         onSlidingComplete={handleSlidingComplete}
       />
       </View>
