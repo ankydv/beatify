@@ -361,7 +361,7 @@ const WebRTCClient = ({ roomId, participantsList = [], muted = false }) => {
       socket.off("user-joined", onUserJoined);
       socket.off("user-left", onUserLeft);
       try {
-        setSpeakerphoneOn(false);
+        setSpeakerphoneOn(true);
       } catch (e) {}
       closeAllPeerConnections(pcsRef);
       stopLocalStream(localStreamRef.current);

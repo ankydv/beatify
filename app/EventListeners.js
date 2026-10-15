@@ -14,6 +14,9 @@ import { useAuth } from "@clerk/clerk-expo";
 import {useAppUpdate} from "@/hooks/otaUpdate.hooks";
 
 
+import { setMinimised } from "@/state/slices/party.slice";
+import store from "@/state/store";
+
 const EventListeners = () => {
   const router = useRouter();
   const navigation = useNavigation();
@@ -27,20 +30,38 @@ const EventListeners = () => {
   useEffect(() => {
     getVisitorData();
     const handleUrl = (event) => {
-      const { url } = event;
+      const { url } = event || {};
+      if (!url) return;
       if (url.includes("oauthredirect")) {
         router.replace("/(tabs)/library");
         return;
       }
       if (url === "trackplayer://notification.click") {
-        if (navigation.getState()?.routes?.some((r) => r.name === "player")) {
-          router.dismissTo("player");
-        } else {
-          router.replace("player");
+        try {
+          const state = store.getState();
+          const activeRoomId = state?.party?.roomId;
+          const currentRoutes = navigation.getState()?.routes || [];
+          const currentRouteName = currentRoutes[currentRoutes.length - 1]?.name;
+
+          if (activeRoomId) {
+            store.dispatch(setMinimised(false));
+            if (currentRouteName !== "voiceRoom") {
+              router.push({ pathname: "/voiceRoom", params: { roomId: activeRoomId } });
+            }
+          } else {
+            if (currentRouteName !== "player") {
+              router.push("/player");
+            }
+          }
+        } catch (navErr) {
+          console.warn("[EventListeners] Notification click navigation error:", navErr);
         }
       }
     };
-    Linking.addEventListener("url", handleUrl);
+    const sub = Linking.addEventListener("url", handleUrl);
+    Linking.getInitialURL().then((initUrl) => {
+      if (initUrl) handleUrl({ url: initUrl });
+    }).catch(() => {});
 
     if (!__DEV__) {
       console.log = () => {};
@@ -49,6 +70,7 @@ const EventListeners = () => {
       console.log(__DEV__);
     }
     return () => {
+      sub?.remove?.();
       disconnectSocket();
       console.log("Socket disconnected");
     };

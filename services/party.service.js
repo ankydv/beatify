@@ -81,11 +81,29 @@ export function usePartyPlayback({ roomId, enabled = true }) {
             // the track card render with real values on a mid-room join.
             mirrorPartyTrack(dispatch, bundle);
           }
-          // Load + start playback when status is playing.
-          if (bundle && st.status === 'playing') {
-            const base = st.serverNowMs || Date.now();
-            const now = serverNowRef.current ? serverNowRef.current() : Date.now();
-            const expectedMs = (st.anchorPosMs || 0) + Math.max(0, now - (st.anchorServerMs || base));
+          // Try initializing the player; if delayed/failed, schedule a retry + fetchLatestPartyState
+          try {
+            await ensurePlayerReady();
+          } catch (initErr) {
+            console.warn('[partyPlayback] initial ensurePlayerReady failed, retrying in 1s...');
+            setTimeout(async () => {
+              if (!alive) return;
+              try {
+                await ensurePlayerReady();
+                const { fetchLatestPartyState } = await import('@/utils/partyPlayback.utils');
+                await fetchLatestPartyState(roomId, dispatch);
+              } catch (e) {}
+            }, 1000);
+            return;
+          }
+
+          const now = serverNowRef.current ? serverNowRef.current() : Date.now();
+          const isLogicallyPlaying = st.status === 'playing' || (st.status === 'loading' && now >= (st.playAtServerMs || 0));
+
+          // Load + start playback when status is playing (or loading past scheduled time).
+          if (bundle && isLogicallyPlaying) {
+            const base = st.playAtServerMs || st.anchorServerMs || st.serverNowMs || now;
+            const expectedMs = (st.anchorPosMs || 0) + Math.max(0, now - base);
             dispatch(setLoading(bundle.queueId));
             let playedOk = false;
             try {
@@ -120,6 +138,29 @@ export function usePartyPlayback({ roomId, enabled = true }) {
               } catch (err) {}
             }
             dispatch(setLoading(null));
+          } else if (bundle && st.status === 'loading' && now < (st.playAtServerMs || 0)) {
+            // Track is scheduled to start soon
+            try {
+              await loadPartyBundle(bundle, ((st.anchorPosMs || 0) / 1000));
+              const delay = delayRef.current ? delayRef.current(st.playAtServerMs) : Math.max(0, (st.playAtServerMs || 0) - now);
+              scheduleAt(delay, async () => {
+                if (!alive) return;
+                dispatch(applyState({ status: 'playing' }));
+                await ensurePlaying();
+              });
+
+              setTimeout(async () => {
+                if (!alive) return;
+                const currentSt = await TrackPlayer.getState().catch(() => null);
+                if (currentSt !== State.Playing && currentSt !== State.Buffering) {
+                  const fresh = await resolveBundle({ videoId: bundle.videoId }).catch(() => null);
+                  if (fresh) {
+                    await loadPartyBundle({ ...bundle, ...fresh }, ((st.anchorPosMs || 0) / 1000));
+                    await ensurePlaying();
+                  }
+                }
+              }, delay + 1500);
+            } catch (e) {}
           } else if (bundle && st.status === 'paused') {
             try {
               await loadPartyBundle(bundle, (st.anchorPosMs || 0) / 1000);
@@ -149,7 +190,7 @@ export function usePartyPlayback({ roomId, enabled = true }) {
 
   usePartyEvents({ roomId, enabled, dispatch, partyRef, cmdSeqRef, delayRef });
   usePartyExtras({ roomId, enabled, partyRef, serverNowRef });
-  usePartyFallback({ enabled, partyRef });
+  usePartyFallback({ enabled, partyRef, delayRef });
 
   /**
    * Keep RNTP's native control set in the right mode for our role:

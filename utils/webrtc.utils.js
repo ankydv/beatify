@@ -64,12 +64,17 @@ export const setLocalMicEnabled = (localStream, enabled) => {
 
 // Route remote audio to the loudspeaker (Android defaults to the
 // earpiece once a mic stream is open, so voice sounds "dead").
-// Uses the native WebRTCModule directly; null-safe if absent.
+// Integrates expo-av setAudioModeAsync and WebRTC native module.
 export const setSpeakerphoneOn = (on = true) => {
   try {
-    const { NativeModules } = require("react-native");
-    NativeModules?.WebRTCModule?.setSpeakerphoneOn?.(on);
-  } catch (e) {}
+    const { applyAudioOutput } = require("@/utils/audioRoute.utils");
+    applyAudioOutput(on ? 'speaker' : 'earpiece').catch(() => {});
+  } catch (e) {
+    try {
+      const { NativeModules } = require("react-native");
+      NativeModules?.WebRTCModule?.setSpeakerphoneOn?.(on);
+    } catch (err) {}
+  }
 };
 
 // Stop all local tracks (mic release on leave/unmount)

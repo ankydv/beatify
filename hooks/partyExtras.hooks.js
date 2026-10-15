@@ -90,18 +90,25 @@ export function usePartyExtras({ roomId, enabled, partyRef, serverNowRef }) {
       if (p.role === 'dj' || p.status !== 'playing') return;
       if (p.anchorServerMs == null) return;
       try {
-        // BUG-1 FIX: only correct forward drift. The old symmetric check
-        // re-sought when the local player was BEHIND (buffering / slow start),
-        // yanking listeners forward spuriously. Behind = keep playing, it
-        // catches up; ahead by >1.2s = real overshoot, seek back.
         const expectedMs = (p.anchorPosMs || 0) + Math.max(0, serverNowRef.current() - p.anchorServerMs);
         const pos = (await TrackPlayer.getPosition()) * 1000;
-        const aheadBy = pos - expectedMs;
-        if (aheadBy > 1200) {
+        const diff = pos - expectedMs;
+        // If ahead by >1200ms -> seek back to expected
+        if (diff > 1200) {
           await TrackPlayer.seekTo(Math.max(0, expectedMs) / 1000);
         }
-      } catch (e) {}
-    }, 5000);
+        // If fallen behind by >2500ms (buffer stall / lag) -> seek forward to catch up
+        else if (diff < -2500) {
+          await TrackPlayer.seekTo(Math.max(0, expectedMs) / 1000);
+          await ensurePlaying();
+        }
+      } catch (e) {
+        try {
+          const { fetchLatestPartyState } = await import('@/utils/partyPlayback.utils');
+          await fetchLatestPartyState(roomId, dispatch);
+        } catch (err) {}
+      }
+    }, 4000);
     return () => clearInterval(id);
-  }, [enabled, partyRef, serverNowRef]);
+  }, [enabled, roomId, dispatch, partyRef, serverNowRef]);
 }

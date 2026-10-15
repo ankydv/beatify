@@ -34,6 +34,7 @@ const initialState = {
   chat: [], // recent messages, oldest -> newest (capped)
   muted: false,
   raisedHand: false,
+  audioOutput: 'speaker', // 'speaker' | 'earpiece'
 };
 
 const MAX_CHAT = 200;
@@ -77,6 +78,9 @@ const partySlice = createSlice({
     },
     setRaisedHand(state, action) {
       state.raisedHand = !!action.payload;
+    },
+    setAudioOutput(state, action) {
+      state.audioOutput = action.payload === 'earpiece' ? 'earpiece' : 'speaker';
     },
     pushChat(state, action) {
       const m = action.payload;
@@ -154,6 +158,7 @@ export const {
   clearPresence,
   setMuted,
   setRaisedHand,
+  setAudioOutput,
   pushChat,
   clearChat,
 } = partySlice.actions;

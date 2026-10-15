@@ -51,6 +51,9 @@ export const initializePlayer = createAsyncThunk(
       });
       await TrackPlayer.setVolume(0.5);
     } catch (error) {
+      if (String(error?.message || error).toLowerCase().includes("already")) {
+        return true;
+      }
       console.error("Error initializing TrackPlayer:", error);
       throw error;
     }

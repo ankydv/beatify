@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -19,9 +19,10 @@ import DJPanel from './DJPanel';
 import PartyTransport from './PartyTransport';
 import { setRoom, setMinimised, resetParty, setJoinError } from '@/state/slices/party.slice';
 import { usePartyPresence, REACTIONS } from '@/hooks/partyPresence.hooks';
+import { toggleAudioOutput } from '@/utils/audioRoute.utils';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const AVATAR = 58;
+const AVATAR = 44;
 
 /**
  * Party room SCREEN — a pure view.
@@ -31,16 +32,17 @@ const AVATAR = 58;
  * lets the hardware back button MINIMISE this screen instead of leaving the
  * room. Leaving is now an explicit action (the power button in the header).
  *
- * The vertical budget is fixed so nothing can ever be pushed off-screen:
- *   header | now-playing card | participant strip | FLEX stage | control bar
- * Only the stage flexes, and every list inside it scrolls internally — a long
- * queue or a long chat can no longer shove the participants out the window.
+ * The vertical budget is streamlined:
+ *   header | now-playing card | participant strip | FLEX stage | compact control bar
+ * Only the stage flexes, giving maximum screen real estate to chat and queue.
  */
 const PartyRoom = () => {
   const dispatch = useDispatch();
   const { roomId } = useLocalSearchParams();
   const party = useSelector((s) => s.party);
-  const { muted, raisedHand, toggleMute, toggleHand, react } = usePartyPresence();
+  const { muted, toggleMute, react } = usePartyPresence();
+  const audioOutput = party.audioOutput || 'speaker';
+  const [showReactions, setShowReactions] = useState(false);
 
   // Register this room as ours — PartyHost does the actual joining.
   useEffect(() => {
@@ -59,114 +61,141 @@ const PartyRoom = () => {
     return () => sub.remove();
   }, [dispatch]);
 
-    const minimize = () => {
-      dispatch(setMinimised(true));
-      router.back();
-    };
+  const minimize = () => {
+    dispatch(setMinimised(true));
+    router.back();
+  };
 
-    const leave = () => {
-      dispatch(resetParty());
-      router.back();
-    };
+  const leave = () => {
+    dispatch(resetParty());
+    router.back();
+  };
 
-    const throwConfetti = () => {
-      react(REACTIONS[Math.floor(Math.random() * REACTIONS.length)]);
-    };
+  const onToggleAudio = () => {
+    toggleAudioOutput(dispatch);
+  };
 
-    const participants = party.participants || [];
-    const count = participants.length;
+  const onSelectReaction = (emoji) => {
+    react(emoji);
+    setShowReactions(false);
+  };
 
-    return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        {/* ---------------- header ---------------- */}
-        <View style={styles.header}>
-          <View style={styles.livePill}>
-            <View style={[styles.liveDot, !party.connected && styles.liveDotOff]} />
-            <Text style={styles.liveText}>{party.connected ? 'LIVE' : 'OFF'}</Text>
-          </View>
-          <View style={styles.headerMeta}>
-            <View style={styles.roomNameContainer}>
-              <Text style={styles.roomName}>Room {roomId}</Text>
-            </View>
-            <Text style={styles.headerSub}>
-              {party.joining
-                ? 'joining the party…'
-                : `${count} ${count === 1 ? 'person' : 'people'} in the party`}
-            </Text>
-          </View>
-          <TouchableOpacity onPress={minimize} style={styles.headerBtn} hitSlop={10}>
-            <Icon name="chevron-down" size={22} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={leave} style={[styles.headerBtn, styles.leaveBtn]} hitSlop={10}>
-            <Icon name="power" size={18} color="#ff6b81" />
-          </TouchableOpacity>
+  const participants = party.participants || [];
+  const count = participants.length;
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      {/* ---------------- header ---------------- */}
+      <View style={styles.header}>
+        <View style={styles.livePill}>
+          <View style={[styles.liveDot, !party.connected && styles.liveDotOff]} />
+          <Text style={styles.liveText}>{party.connected ? 'LIVE' : 'OFF'}</Text>
         </View>
+        <View style={styles.headerMeta}>
+          <View style={styles.roomNameContainer}>
+            <Text style={styles.roomName}>Room {roomId}</Text>
+          </View>
+          <Text style={styles.headerSub}>
+            {party.joining
+              ? 'joining the party…'
+              : `${count} ${count === 1 ? 'person' : 'people'} in the party`}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={minimize} style={styles.headerBtn} hitSlop={10}>
+          <Icon name="chevron-down" size={20} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={leave} style={[styles.headerBtn, styles.leaveBtn]} hitSlop={10}>
+          <Icon name="power" size={17} color="#ff6b81" />
+        </TouchableOpacity>
+      </View>
 
-        {party.joinError ? (
-          <TouchableOpacity style={styles.errBanner} onPress={() => dispatch(setJoinError(null))}>
-            <Icon name="wifi-off" size={14} color="#ffca28" />
-            <Text style={styles.errText} numberOfLines={2}>
-              {party.joinError} — tap to dismiss
-            </Text>
-          </TouchableOpacity>
-        ) : null}
+      {party.joinError ? (
+        <TouchableOpacity style={styles.errBanner} onPress={() => dispatch(setJoinError(null))}>
+          <Icon name="wifi-off" size={14} color="#ffca28" />
+          <Text style={styles.errText} numberOfLines={2}>
+            {party.joinError} — tap to dismiss
+          </Text>
+        </TouchableOpacity>
+      ) : null}
 
-        {/* ---------------- now playing ---------------- */}
-        <PartyTransport roomId={roomId} />
+      {/* ---------------- now playing ---------------- */}
+      <PartyTransport roomId={roomId} />
 
-        {/* ---------------- PARTICIPANT STRIP - IMPROVED ----------------- */}
-        <ParticipantStrip
-          participants={participants}
-          presence={party.presence || {}}
-          meId={socket.id}
-          djId={party.djSocketId}
-          muted={muted}
-          raisedHand={raisedHand}
+      {/* ---------------- PARTICIPANT STRIP ----------------- */}
+      <ParticipantStrip
+        participants={participants}
+        presence={party.presence || {}}
+        meId={socket.id}
+        djId={party.djSocketId}
+        muted={muted}
+      />
+
+      {/* ---------------- the ONE flexible region (chat / queue) ---------------- */}
+      <View style={styles.stage}>
+        {party.joining && !count ? (
+          <View style={styles.stageLoading}>
+            <LoadingIndicator />
+            <Text style={styles.stageLoadingText}>Pulling up a chair…</Text>
+          </View>
+        ) : (
+          <DJPanel roomId={roomId} />
+        )}
+      </View>
+
+      {/* ---------------- Quick Reaction Shelf (Party Vibe) ---------------- */}
+      {showReactions ? (
+        <View style={styles.reactionShelf}>
+          {REACTIONS.map((emoji) => (
+            <TouchableOpacity
+              key={emoji}
+              style={styles.reactionBtn}
+              onPress={() => onSelectReaction(emoji)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.reactionEmoji}>{emoji}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
+
+      {/* ---------------- COMPACT CONTROL BAR ---------------- */}
+      <View style={styles.controls}>
+        <ControlButton
+          label={muted ? 'Muted' : 'Mic On'}
+          onPress={toggleMute}
+          icon={muted ? 'microphone-off' : 'microphone'}
+          variant={muted ? 'danger' : 'success'}
         />
 
-        {/* ---------------- the ONE flexible region ---------------- */}
-        <View style={styles.stage}>
-          {party.joining && !count ? (
-            <View style={styles.stageLoading}>
-              <LoadingIndicator />
-              <Text style={styles.stageLoadingText}>Pulling up a chair…</Text>
-            </View>
-          ) : (
-            <DJPanel roomId={roomId} />
-          )}
-        </View>
+        <ControlButton
+          label={audioOutput === 'earpiece' ? 'Earpiece' : 'Speaker'}
+          onPress={onToggleAudio}
+          icon={audioOutput === 'earpiece' ? 'phone-in-talk' : 'volume-high'}
+          variant="audio"
+        />
 
-        {/* ---------------- CONTROL BAR ---------------- */}
-        <View style={styles.controls}>
-          <ControlButton
-            label={muted ? 'Unmute' : 'Mute'}
-            onPress={toggleMute}
-            icon={muted ? 'microphone-off' : 'microphone'}
-            fab
-            danger={muted}
-          />
-          <ControlButton
-            label={raisedHand ? 'Lower hand' : 'Raise hand'}
-            onPress={toggleHand}
-            icon="hand-back-right"
-            active={raisedHand}
-          />
-          <ControlButton label="React" onPress={throwConfetti} icon="party-popper" />
-        </View>
-      </SafeAreaView>
-    );
-  };
+        <ControlButton
+          label="React"
+          onPress={() => setShowReactions((prev) => !prev)}
+          icon="party-popper"
+          active={showReactions}
+          variant="party"
+        />
+      </View>
+    </SafeAreaView>
+  );
+};
 
 export default PartyRoom;
 
 /* ------------------------------------------------------------------ */
-/* Participant strip — horizontal, fixed height, never squeezes out    */
+/* Participant strip — horizontal, compact height, never squeezes out  */
 /* ------------------------------------------------------------------ */
-function ParticipantStrip({ participants, presence, meId, djId, muted, raisedHand }) {
+function ParticipantStrip({ participants, presence, meId, djId, muted }) {
   return (
     <View style={styles.stripWrap}>
       <View style={styles.stripHead}>
-        <Icon name="account-group" size={15} color="#a99ce0" />
+        <Icon name="account-group" size={14} color="#a99ce0" />
         <Text style={styles.stripTitle}>In the party</Text>
         <View style={styles.countChip}>
           <Text style={styles.countChipText}>{participants.length}</Text>
@@ -185,7 +214,6 @@ function ParticipantStrip({ participants, presence, meId, djId, muted, raisedHan
             const isDj = p.id === djId;
             const pr = presence[p.id] || {};
             const isMuted = isMe ? muted : !!pr.muted;
-            const isHand = isMe ? raisedHand : !!pr.raisedHand;
             const name = p.name || p.userName || 'Guest';
             const initial = String(name).trim().charAt(0).toUpperCase() || '?';
             return (
@@ -195,6 +223,7 @@ function ParticipantStrip({ participants, presence, meId, djId, muted, raisedHan
                     styles.avatarRing,
                     isDj && styles.ringDj,
                     isMe && styles.ringMe,
+                    !isMuted && styles.ringSpeaking,
                   ]}
                 >
                   {p.picture ? (
@@ -206,17 +235,16 @@ function ParticipantStrip({ participants, presence, meId, djId, muted, raisedHan
                   )}
                   {isMuted ? (
                     <View style={styles.muteBadge}>
-                      <Icon name="microphone-off" size={10} color="#fff" />
+                      <Icon name="microphone-off" size={9} color="#fff" />
                     </View>
-                  ) : null}
-                  {isHand ? (
-                    <View style={styles.handBadge}>
-                      <Text style={styles.handEmoji}>✋</Text>
+                  ) : (
+                    <View style={styles.speakingBadge}>
+                      <Icon name="volume-high" size={8} color="#22c55e" />
                     </View>
-                  ) : null}
+                  )}
                   {isDj ? (
                     <View style={styles.crown}>
-                      <Icon name="crown" size={11} color="#141018" />
+                      <Icon name="crown" size={10} color="#141018" />
                     </View>
                   ) : null}
                 </View>
@@ -236,20 +264,29 @@ function ParticipantStrip({ participants, presence, meId, djId, muted, raisedHan
 }
 
 /* ------------------------------------------------------------------ */
-/* Bottom control                                                      */
+/* Compact Bottom control button                                      */
 /* ------------------------------------------------------------------ */
-function ControlButton({ label, onPress, icon, fab, active, danger }) {
+function ControlButton({ label, onPress, icon, variant, active }) {
+  const getStyle = () => {
+    if (variant === 'danger') return styles.btnDanger;
+    if (variant === 'success') return styles.btnSuccess;
+    if (variant === 'audio') return styles.btnAudio;
+    if (variant === 'party') return styles.btnParty;
+    return styles.btnDefault;
+  };
+
+  const getIconColor = () => {
+    if (variant === 'danger') return '#ef4444';
+    if (variant === 'success') return '#22c55e';
+    if (variant === 'audio') return '#a78bfa';
+    if (variant === 'party') return '#f472b6';
+    return '#fff';
+  };
+
   return (
-    <TouchableOpacity style={styles.control} onPress={onPress} activeOpacity={0.8}>
-      <View
-        style={[
-          styles.controlFab,
-          fab && styles.controlFabBig,
-          active && styles.controlActive,
-          danger && styles.controlDanger,
-        ]}
-      >
-        <Icon name={icon} size={fab ? 26 : 22} color="#fff" />
+    <TouchableOpacity style={styles.control} onPress={onPress} activeOpacity={0.75}>
+      <View style={[styles.controlBtn, getStyle(), active && styles.btnActive]}>
+        <Icon name={icon} size={18} color={getIconColor()} />
       </View>
       <Text style={[styles.controlLabel, active && styles.controlLabelActive]} numberOfLines={1}>
         {label}
@@ -267,30 +304,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 14,
-    paddingTop: 6,
-    paddingBottom: 8,
+    paddingTop: 4,
+    paddingBottom: 6,
   },
   livePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     backgroundColor: 'rgba(255,45,85,0.14)',
     borderColor: 'rgba(255,45,85,0.45)',
     borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#ff2d55' },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ff2d55' },
   liveDotOff: { backgroundColor: '#666' },
-  liveText: { color: '#ff6b81', fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
+  liveText: { color: '#ff6b81', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
   headerMeta: { flex: 1 },
-  roomName: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  headerSub: { color: '#8f86b3', fontSize: 11, marginTop: 1 },
+  roomName: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  headerSub: { color: '#8f86b3', fontSize: 10, marginTop: 1 },
   headerBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.07)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -300,116 +337,158 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginHorizontal: 14,
-    marginBottom: 6,
+    marginHorizontal: 12,
+    marginBottom: 4,
     paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingVertical: 6,
     borderRadius: 8,
     backgroundColor: 'rgba(255,202,40,0.10)',
   },
   errText: { color: '#ffca28', fontSize: 11, flex: 1 },
 
   /* participant strip */
-  stripWrap: { paddingTop: 6, paddingBottom: 4 },
-  stripHead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginBottom: 8 },
-  stripTitle: { color: '#cfc6f5', fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
+  stripWrap: { paddingTop: 4, paddingBottom: 2 },
+  stripHead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, marginBottom: 5 },
+  stripTitle: { color: '#cfc6f5', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
   countChip: {
-    minWidth: 20,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 5,
+    minWidth: 18,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
     backgroundColor: '#6200ee',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  countChipText: { color: '#fff', fontSize: 10, fontWeight: '800' },
-  stripScroll: { paddingHorizontal: 14, alignItems: 'flex-start' },
-  stripEmpty: { color: '#6d6590', fontSize: 12, paddingVertical: 16, paddingHorizontal: 4 },
-  person: { width: 64, alignItems: 'center', marginRight: 8 },
+  countChipText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+  stripScroll: { paddingHorizontal: 12, alignItems: 'flex-start' },
+  stripEmpty: { color: '#6d6590', fontSize: 11, paddingVertical: 10, paddingHorizontal: 4 },
+  person: { width: 54, alignItems: 'center', marginRight: 6 },
   avatarRing: {
-    width: AVATAR + 8,
-    height: AVATAR + 8,
-    borderRadius: (AVATAR + 8) / 2,
-    borderWidth: 2,
+    width: AVATAR + 6,
+    height: AVATAR + 6,
+    borderRadius: (AVATAR + 6) / 2,
+    borderWidth: 1.5,
     borderColor: '#3a3155',
     alignItems: 'center',
     justifyContent: 'center',
   },
   ringMe: { borderColor: '#8b5cf6' },
-  ringDj: { borderColor: '#ffca28' },
+  ringDj: { borderColor: '#ffca28', borderWidth: 2 },
+  ringSpeaking: { borderColor: '#22c55e', borderWidth: 2 },
   avatarImg: { width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2, backgroundColor: '#2a2340' },
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { color: '#c9b6ff', fontSize: 22, fontWeight: '700' },
+  avatarInitial: { color: '#c9b6ff', fontSize: 18, fontWeight: '700' },
   muteBadge: {
     position: 'absolute',
     bottom: -2,
     right: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 17,
+    height: 17,
+    borderRadius: 8.5,
     backgroundColor: '#c62828',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#0d0a14',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  handBadge: {
+  speakingBadge: {
     position: 'absolute',
-    top: -6,
-    right: -8,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#2c2140',
-    borderWidth: 1,
-    borderColor: '#ffca28',
+    bottom: -2,
+    right: -2,
+    width: 17,
+    height: 17,
+    borderRadius: 8.5,
+    backgroundColor: '#14532d',
+    borderWidth: 1.5,
+    borderColor: '#0d0a14',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  handEmoji: { fontSize: 11, lineHeight: 13 },
   crown: {
     position: 'absolute',
-    top: -9,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    top: -7,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: '#ffca28',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#0d0a14',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  personName: { color: '#9a90bd', fontSize: 10, marginTop: 5, maxWidth: 64, textAlign: 'center' },
+  personName: { color: '#9a90bd', fontSize: 9, marginTop: 3, maxWidth: 54, textAlign: 'center' },
   personNameMe: { color: '#fff', fontWeight: '700' },
 
-  /* the single flexible region */
-  stage: { flex: 1, minHeight: 0, marginTop: 6, paddingHorizontal: 10 },
+  /* the single flexible region (flex: 1 maximized) */
+  stage: { flex: 1, minHeight: 0, marginTop: 4, paddingHorizontal: 10 },
   stageLoading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   stageLoadingText: { color: '#7d74a3', fontSize: 12 },
 
-  /* control bar */
+  /* Quick Reaction Shelf */
+  reactionShelf: {
+    position: 'absolute',
+    bottom: 56,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    backgroundColor: 'rgba(21, 16, 34, 0.96)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#3b2d5c',
+    gap: 8,
+    shadowColor: '#f472b6',
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+    zIndex: 20,
+  },
+  reactionBtn: { padding: 4 },
+  reactionEmoji: { fontSize: 22 },
+
+  /* compact control bar */
   controls: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#241d33',
     backgroundColor: '#120e1c',
   },
-  control: { alignItems: 'center', gap: 4, minWidth: 78 },
-  controlFab: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#2c2140',
+  control: { alignItems: 'center', gap: 2, minWidth: 64 },
+  controlBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
-  controlFabBig: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#1f7a4d' },
-  controlActive: { backgroundColor: '#c98a00' },
-  controlDanger: { backgroundColor: '#c62828' },
-  controlLabel: { color: '#8f86b3', fontSize: 10, fontWeight: '600' },
-  controlLabelActive: { color: '#ffca28' },
+  btnDefault: { backgroundColor: 'rgba(255,255,255,0.06)' },
+  btnSuccess: {
+    backgroundColor: 'rgba(34, 197, 94, 0.16)',
+    borderColor: 'rgba(34, 197, 94, 0.4)',
+  },
+  btnDanger: {
+    backgroundColor: 'rgba(239, 68, 68, 0.16)',
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+  },
+  btnAudio: {
+    backgroundColor: 'rgba(139, 92, 246, 0.16)',
+    borderColor: 'rgba(139, 92, 246, 0.4)',
+  },
+  btnParty: {
+    backgroundColor: 'rgba(236, 72, 153, 0.16)',
+    borderColor: 'rgba(236, 72, 153, 0.4)',
+  },
+  btnActive: {
+    shadowColor: '#fff',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  controlLabel: { color: '#8f86b3', fontSize: 9.5, fontWeight: '600' },
+  controlLabelActive: { color: '#f472b6' },
 });

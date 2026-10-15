@@ -28,34 +28,72 @@ export function scheduleAt(delayMs, fn) {
  * loadPartyBundle() silently threw and no track played. This lazily
  * initialises once and is safe to call from every party entry point.
  */
-export function ensurePlayerReady() {
+export async function ensurePlayerReady() {
   try {
     const st = store.getState();
-    if (st?.audio?.isInitialized) return Promise.resolve(true);
+    if (st?.audio?.isInitialized) return true;
   } catch (e) {}
+
+  // Check if native player is already alive (e.g. from background or earlier setup)
+  try {
+    const nativeState = await TrackPlayer.getState();
+    if (nativeState != null) {
+      try {
+        const { setIsInitialized } = await import('@/state/slices/audio.slice');
+        store.dispatch(setIsInitialized(true));
+      } catch (e) {}
+      return true;
+    }
+  } catch (e) {}
+
   if (!playerReadyPromise) {
     playerReadyPromise = (async () => {
-      try {
-        const { initializePlayer, setIsInitialized } = await import(
-          '@/state/slices/audio.slice'
-        );
-        await store.dispatch(initializePlayer()).unwrap();
+      let attempts = 0;
+      let lastErr = null;
+      while (attempts < 2) {
+        attempts++;
         try {
-          store.dispatch(setIsInitialized(true));
-        } catch (e) {}
-        // initializePlayer() always writes the DEFAULT (full) capability set.
-        // Re-apply the room lock afterwards — if a LISTENER is the one booting
-        // the player, the Android notification / media session must not expose
-        // any control to them. (Default ensureReady:false => no recursion.)
-        await applyRoomControlLock();
-        return true;
-      } catch (e) {
-        playerReadyPromise = null;
-        throw e;
+          const { initializePlayer, setIsInitialized } = await import(
+            '@/state/slices/audio.slice'
+          );
+          await store.dispatch(initializePlayer()).unwrap();
+          try {
+            store.dispatch(setIsInitialized(true));
+          } catch (e) {}
+          // Re-apply room control lock after initialization
+          await applyRoomControlLock();
+          return true;
+        } catch (e) {
+          lastErr = e;
+          if (attempts < 2) {
+            await new Promise((r) => setTimeout(r, 500));
+          }
+        }
       }
+      playerReadyPromise = null;
+      throw lastErr;
     })();
   }
   return playerReadyPromise;
+}
+
+/**
+ * Fetch latest room state from server and apply it.
+ * Used when recovering from player initialization delay, seek errors, or desync.
+ */
+export async function fetchLatestPartyState(roomId, dispatch) {
+  if (!roomId) return null;
+  try {
+    const { emitWithAck } = await import('@/configs/socket');
+    const { applyState } = await import('@/state/slices/party.slice');
+    const res = await emitWithAck('dj:state-request', { roomId });
+    const st = res?.state || res;
+    if (st && st.roomId) {
+      if (dispatch) dispatch(applyState(st));
+      return st;
+    }
+  } catch (e) {}
+  return null;
 }
 
 /**

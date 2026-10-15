@@ -22,138 +22,235 @@ export function usePartyEvents({ roomId, enabled, dispatch, partyRef, cmdSeqRef,
       if (s.djSocketId) dispatch(setRole(s.djSocketId === socket.id ? 'dj' : 'listener'));
 
       // If playback is logically playing on the server, ensure late joiners start playing
-      if (s.status === 'playing' && s.currentIndex >= 0 && s.queue?.[s.currentIndex]) {
+      if ((s.status === 'playing' || s.status === 'loading') && s.currentIndex >= 0 && s.queue?.[s.currentIndex]) {
         try {
-          const active = await TrackPlayer.getActiveTrack().catch(() => null);
           const bundle = s.queue[s.currentIndex];
-          const st = await TrackPlayer.getState().catch(() => null);
-          const isCurrentActive = active && (String(active.id) === String(bundle.queueId) || String(active.id) === String(bundle.videoId));
-          const isActuallyPlaying = isCurrentActive && (st === State.Playing || st === State.Buffering);
-          if (!isActuallyPlaying && bundle) {
-            const base = s.serverNowMs || Date.now();
-            const expectedMs = (s.anchorPosMs || 0) + Math.max(0, Date.now() - (s.anchorServerMs || base));
-            mirrorPartyTrack(dispatch, bundle);
-            let playedOk = false;
-            try {
-              await loadPartyBundle(bundle, expectedMs / 1000);
-              await ensurePlaying();
-              if (expectedMs > 500) {
-                try {
-                  await TrackPlayer.seekTo(expectedMs / 1000);
-                } catch (e) {}
-              }
-              await new Promise((r) => setTimeout(r, 1200));
-              const checkSt = await TrackPlayer.getState().catch(() => null);
-              if (checkSt === State.Playing || checkSt === State.Buffering) {
-                playedOk = true;
-              }
-            } catch (err) {}
+          const now = Date.now();
+          const isLogicallyPlaying = s.status === 'playing' || (s.status === 'loading' && now >= (s.playAtServerMs || 0));
 
-            if (!playedOk) {
-              const { resolveBundle } = await import('@/utils/partyDj.utils');
-              const fresh = await resolveBundle({ videoId: bundle.videoId }).catch(() => null);
-              if (fresh) {
-                await loadPartyBundle({ ...bundle, ...fresh }, expectedMs / 1000);
+          if (isLogicallyPlaying) {
+            const active = await TrackPlayer.getActiveTrack().catch(() => null);
+            const st = await TrackPlayer.getState().catch(() => null);
+            const isCurrentActive = active && (String(active.id) === String(bundle.queueId) || String(active.id) === String(bundle.videoId));
+            const isActuallyPlaying = isCurrentActive && (st === State.Playing || st === State.Buffering);
+            if (!isActuallyPlaying && bundle) {
+              const base = s.playAtServerMs || s.anchorServerMs || s.serverNowMs || now;
+              const expectedMs = (s.anchorPosMs || 0) + Math.max(0, now - base);
+              mirrorPartyTrack(dispatch, bundle);
+              let playedOk = false;
+              try {
+                await ensurePlayerReady();
+                await loadPartyBundle(bundle, expectedMs / 1000);
                 await ensurePlaying();
                 if (expectedMs > 500) {
                   try {
                     await TrackPlayer.seekTo(expectedMs / 1000);
                   } catch (e) {}
                 }
+                await new Promise((r) => setTimeout(r, 1200));
+                const checkSt = await TrackPlayer.getState().catch(() => null);
+                if (checkSt === State.Playing || checkSt === State.Buffering) {
+                  playedOk = true;
+                }
+              } catch (err) {}
+
+              if (!playedOk) {
+                const { resolveBundle } = await import('@/utils/partyDj.utils');
+                const fresh = await resolveBundle({ videoId: bundle.videoId }).catch(() => null);
+                if (fresh) {
+                  await loadPartyBundle({ ...bundle, ...fresh }, expectedMs / 1000);
+                  await ensurePlaying();
+                  if (expectedMs > 500) {
+                    try {
+                      await TrackPlayer.seekTo(expectedMs / 1000);
+                    } catch (e) {}
+                  }
+                }
               }
             }
+          } else if (s.status === 'loading' && now < (s.playAtServerMs || 0)) {
+            const delay = delayRef.current ? delayRef.current(s.playAtServerMs) : Math.max(0, s.playAtServerMs - now);
+            await ensurePlayerReady();
+            await loadPartyBundle(bundle, ((s.anchorPosMs || 0) / 1000));
+            scheduleAt(delay, async () => {
+              dispatch(applyState({ status: 'playing' }));
+              await ensurePlaying();
+            });
           }
         } catch (e) {}
       }
     };
-    const onLoad = async ({ queueId, bundle, playAtServerMs, positionMs, anchorPosMs, anchorServerMs, cmdSeq }) => {
+    const onLoad = async ({ queueId, bundle, playAtServerMs, positionMs, anchorPosMs, anchorServerMs, serverNowMs, cmdSeq }) => {
       if (!accept(cmdSeq)) return;
-      // BUG-1 FIX: refresh the sync anchor FIRST so the drift corrector and
-      // the late-join math below use the NEW baseline, not the stale one
-      // from the previous track/pause.
+      const srvMs = anchorServerMs ?? serverNowMs ?? Date.now();
       dispatch(applyState({
         anchorPosMs: anchorPosMs ?? positionMs ?? 0,
-        ...(anchorServerMs != null ? { anchorServerMs } : {}),
+        anchorServerMs: srvMs,
       }));
       const idx = partyRef.current.queue.findIndex((q) => q.queueId === queueId);
       dispatch(applyState({ status: 'loading', currentIndex: idx, cmdSeq }));
       dispatch(setLoading(queueId));
       mirrorPartyTrack(dispatch, bundle);
+
       try {
         await ensurePlayerReady();
+      } catch (err) {
+        // Player init failed -> retry and fetch latest status from server
+        setTimeout(async () => {
+          try {
+            await ensurePlayerReady();
+            const { fetchLatestPartyState } = await import('@/utils/partyPlayback.utils');
+            await fetchLatestPartyState(roomId, dispatch);
+          } catch (e) {}
+        }, 1000);
+        return;
+      }
+
+      try {
         await loadPartyBundle(bundle, ((anchorPosMs ?? positionMs) || 0) / 1000);
-        scheduleAt(delayRef.current(playAtServerMs), async () => {
+        const delay = delayRef.current ? delayRef.current(playAtServerMs) : Math.max(0, (playAtServerMs || 0) - Date.now());
+        scheduleAt(delay, async () => {
           dispatch(setLoading(null));
           dispatch(applyState({ status: 'playing' }));
           await ensurePlaying();
+          try {
+            const { applyAudioOutput } = await import('@/utils/audioRoute.utils');
+            applyAudioOutput().catch(() => {});
+          } catch (e) {}
         });
+
+        // Verification after scheduled start + buffer
+        setTimeout(async () => {
+          try {
+            const checkSt = await TrackPlayer.getState().catch(() => null);
+            if (checkSt !== State.Playing && checkSt !== State.Buffering) {
+              const { resolveBundle } = await import('@/utils/partyDj.utils');
+              const fresh = await resolveBundle({ videoId: bundle.videoId });
+              if (fresh) {
+                await loadPartyBundle({ ...bundle, ...fresh }, ((anchorPosMs ?? positionMs) || 0) / 1000);
+                await ensurePlaying();
+              }
+            }
+          } catch (err) {}
+        }, delay + 1500);
       } catch (e) {
         dispatch(setLoading(null));
+        try {
+          const { resolveBundle } = await import('@/utils/partyDj.utils');
+          const fresh = await resolveBundle({ videoId: bundle.videoId });
+          if (fresh) {
+            await loadPartyBundle({ ...bundle, ...fresh }, ((anchorPosMs ?? positionMs) || 0) / 1000);
+            const delay = delayRef.current ? delayRef.current(playAtServerMs) : Math.max(0, (playAtServerMs || 0) - Date.now());
+            scheduleAt(delay, async () => {
+              dispatch(applyState({ status: 'playing' }));
+              await ensurePlaying();
+            });
+          }
+        } catch (err) {}
       }
     };
-    const onPlay = async ({ bundle, queueId, playAtServerMs, positionMs, anchorPosMs, anchorServerMs, cmdSeq }) => {
+    const onPlay = async ({ bundle, queueId, playAtServerMs, positionMs, anchorPosMs, anchorServerMs, serverNowMs, cmdSeq }) => {
       if (!accept(cmdSeq)) return;
       if (bundle) mirrorPartyTrack(dispatch, bundle);
-      // BUG-1 FIX: this is the +1min-gap root. dj:play carries a FUTURE
-      // anchor (anchorPosMs @ anchorServerMs == playAtServerMs). The old code
-      // seeked to positionMs immediately and left party.anchor* stale, so the
-      // periodic drift corrector computed
-      //   expected = OLD_anchorPos + (serverNow - OLD_anchorServer)
-      // which included the whole paused duration → hard seek forward right
-      // after resume. Refresh redux FIRST, then seek locally.
+      const srvMs = anchorServerMs ?? serverNowMs ?? Date.now();
       dispatch(applyState({
         status: 'playing',
         anchorPosMs: anchorPosMs ?? positionMs ?? 0,
-        ...(anchorServerMs != null ? { anchorServerMs } : {}),
+        anchorServerMs: srvMs,
         ...(playAtServerMs != null ? { playAtServerMs } : {}),
       }));
+
       try {
         await ensurePlayerReady();
+      } catch (err) {
+        setTimeout(async () => {
+          try {
+            await ensurePlayerReady();
+            const { fetchLatestPartyState } = await import('@/utils/partyPlayback.utils');
+            await fetchLatestPartyState(roomId, dispatch);
+          } catch (e) {}
+        }, 1000);
+        return;
+      }
+
+      try {
         const active = await TrackPlayer.getActiveTrack().catch(() => null);
         const needLoad = !active || (queueId && String(active.id) !== String(queueId));
-        if (needLoad && bundle) await loadPartyBundle(bundle, ((anchorPosMs ?? positionMs) || 0) / 1000);
-        else if ((anchorPosMs ?? positionMs ?? 0) > 500) {
+        const seekPos = ((anchorPosMs ?? positionMs) || 0) / 1000;
+        if (needLoad && bundle) {
+          await loadPartyBundle(bundle, seekPos);
+        } else if (seekPos > 0.5) {
           try {
-            await TrackPlayer.seekTo((anchorPosMs ?? positionMs) / 1000);
+            await TrackPlayer.seekTo(seekPos);
           } catch (e) {}
         }
-        scheduleAt(delayRef.current(playAtServerMs), async () => {
+        const delay = delayRef.current ? delayRef.current(playAtServerMs) : Math.max(0, (playAtServerMs || 0) - Date.now());
+        scheduleAt(delay, async () => {
           dispatch(applyState({ status: 'playing' }));
           await ensurePlaying();
+          try {
+            const { applyAudioOutput } = await import('@/utils/audioRoute.utils');
+            applyAudioOutput().catch(() => {});
+          } catch (e) {}
         });
+
+        setTimeout(async () => {
+          try {
+            const checkSt = await TrackPlayer.getState().catch(() => null);
+            if (checkSt !== State.Playing && checkSt !== State.Buffering) {
+              const vid = bundle?.videoId || active?.id;
+              if (vid) {
+                const { resolveBundle } = await import('@/utils/partyDj.utils');
+                const fresh = await resolveBundle({ videoId: vid });
+                if (fresh) {
+                  await loadPartyBundle({ ...(bundle || {}), ...fresh }, seekPos);
+                  await ensurePlaying();
+                }
+              }
+            }
+          } catch (err) {}
+        }, delay + 1500);
       } catch (e) {}
     };
-    const onPause = async ({ positionMs, anchorPosMs, anchorServerMs, cmdSeq }) => {
+    const onPause = async ({ positionMs, anchorPosMs, anchorServerMs, serverNowMs, cmdSeq }) => {
       if (!accept(cmdSeq)) return;
       const pos = anchorPosMs ?? positionMs ?? 0;
-      // BUG-1 FIX: cancel any pending scheduled-play timer (a resume queued
-      // before this pause landed would otherwise fire late), freeze the redux
-      // anchor to the pause point, THEN seek locally. Old order did seek→pause
-      // while anchor stayed stale, so the corrector jumped forward.
+      const srvMs = anchorServerMs ?? serverNowMs ?? Date.now();
       clearScheduled();
-      dispatch(applyState({ status: 'paused', anchorPosMs: pos, ...(anchorServerMs != null ? { anchorServerMs } : {}) }));
+      dispatch(applyState({ status: 'paused', anchorPosMs: pos, anchorServerMs: srvMs }));
       try {
-        // Freeze local playback exactly at the pause point; local getPosition
-        // may be ahead/behind Exo state, so force-seek to the server value.
+        await ensurePlayerReady();
         try {
           await TrackPlayer.seekTo(Math.max(0, pos) / 1000);
         } catch (e) {}
         await pauseParty();
       } catch (e) {}
     };
-    const onSeek = async ({ positionMs, anchorPosMs, anchorServerMs, playing, cmdSeq }) => {
+    const onSeek = async ({ positionMs, anchorPosMs, anchorServerMs, serverNowMs, playing, cmdSeq }) => {
       if (!accept(cmdSeq)) return;
       const pos = anchorPosMs ?? positionMs ?? 0;
-      // Same anchor-first ordering as pause: redux before local seek.
+      const srvMs = anchorServerMs ?? serverNowMs ?? Date.now();
       dispatch(applyState({
         anchorPosMs: pos,
-        ...(anchorServerMs != null ? { anchorServerMs } : {}),
+        anchorServerMs: srvMs,
       }));
       try {
+        await ensurePlayerReady();
+        const active = await TrackPlayer.getActiveTrack().catch(() => null);
+        if (!active) {
+          const { fetchLatestPartyState } = await import('@/utils/partyPlayback.utils');
+          await fetchLatestPartyState(roomId, dispatch);
+          return;
+        }
         await TrackPlayer.seekTo(Math.max(0, pos) / 1000);
         if (playing) await ensurePlaying();
         else await pauseParty();
-      } catch (e) {}
+      } catch (e) {
+        try {
+          const { fetchLatestPartyState } = await import('@/utils/partyPlayback.utils');
+          await fetchLatestPartyState(roomId, dispatch);
+        } catch (err) {}
+      }
     };
     const onRole = ({ newDjSocketId }) => {
       dispatch(applyState({ djSocketId: newDjSocketId }));

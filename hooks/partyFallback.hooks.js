@@ -5,7 +5,7 @@ import { loadPartyBundle, ensurePlaying } from '@/utils/partyPlayback.utils';
 
 // Listener fallback: if the DJ-shared URL fails on this device (rare IP/UA
 // edge), resolve locally via InnerTube once instead of stalling.
-export function usePartyFallback({ enabled, partyRef }) {
+export function usePartyFallback({ enabled, partyRef, delayRef }) {
   useEffect(() => {
     if (!enabled) return;
 
@@ -29,7 +29,14 @@ export function usePartyFallback({ enabled, partyRef }) {
 
     const checkAndFallback = async (payload) => {
       try {
-        await new Promise((r) => setTimeout(r, 2000));
+        let waitTime = 2500;
+        if (payload?.playAtServerMs) {
+          const delay = delayRef?.current ? delayRef.current(payload.playAtServerMs) : Math.max(0, payload.playAtServerMs - Date.now());
+          waitTime = delay + 2000;
+        }
+        await new Promise((r) => setTimeout(r, waitTime));
+        const p = partyRef.current;
+        if (p.status !== 'playing' && p.status !== 'loading') return;
         const st = await TrackPlayer.getState().catch(() => null);
         if (st === State.Playing || st === State.Buffering) return;
         await tryLocalResolve(payload);
@@ -42,5 +49,5 @@ export function usePartyFallback({ enabled, partyRef }) {
       socket.off('dj:load', checkAndFallback);
       socket.off('dj:play', checkAndFallback);
     };
-  }, [enabled, partyRef]);
+  }, [enabled, partyRef, delayRef]);
 }
