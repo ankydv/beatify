@@ -22,7 +22,21 @@ const initialState = {
   lastSyncAt: null,
   loadingQueueId: null,
   error: null,
+
+  // ---- Room runtime (owned by PartyHost at the app root so the room keeps
+  //      running while the room SCREEN is minimised) ----
+  minimised: false,
+  joining: false,
+  joinError: null,
+  connected: false,
+  participants: [], // [{ id (socketId), name, picture, userId, ... }]
+  presence: {}, // { [socketId]: { muted, raisedHand } }
+  chat: [], // recent messages, oldest -> newest (capped)
+  muted: false,
+  raisedHand: false,
 };
+
+const MAX_CHAT = 200;
 
 const partySlice = createSlice({
   name: 'party',
@@ -30,6 +44,61 @@ const partySlice = createSlice({
   reducers: {
     setRoom(state, action) {
       state.roomId = action.payload;
+    },
+    setMinimised(state, action) {
+      state.minimised = !!action.payload;
+    },
+    setJoining(state, action) {
+      state.joining = !!action.payload;
+    },
+    setJoinError(state, action) {
+      state.joinError = action.payload;
+    },
+    setConnected(state, action) {
+      state.connected = !!action.payload;
+    },
+    setParticipants(state, action) {
+      state.participants = Array.isArray(action.payload) ? action.payload : [];
+    },
+    setPresence(state, action) {
+      const { id, muted, raisedHand } = action.payload || {};
+      if (!id) return;
+      const prev = state.presence[id] || {};
+      state.presence[id] = {
+        muted: muted === undefined ? prev.muted : !!muted,
+        raisedHand: raisedHand === undefined ? prev.raisedHand : !!raisedHand,
+      };
+    },
+    clearPresence(state, action) {
+      delete state.presence[action.payload];
+    },
+    setMuted(state, action) {
+      state.muted = !!action.payload;
+    },
+    setRaisedHand(state, action) {
+      state.raisedHand = !!action.payload;
+    },
+    pushChat(state, action) {
+      const m = action.payload;
+      if (!m?.message) return;
+      const now = Date.now();
+      const last = state.chat[state.chat.length - 1];
+      if (last) {
+        const lastId = last?._id ?? last?.id;
+        const incomingId = m?._id ?? m?.id;
+        if (incomingId != null && lastId != null && String(incomingId) === String(lastId)) return;
+        const sameUser =
+          last?.userId != null && m?.userId != null && String(last.userId) === String(m.userId);
+        const sameText = last.message === m.message;
+        if (sameUser && sameText && now - (last._ts || 0) < 3000) return;
+      }
+      state.chat.push({ ...m, _ts: now });
+      if (state.chat.length > MAX_CHAT) {
+        state.chat.splice(0, state.chat.length - MAX_CHAT);
+      }
+    },
+    clearChat(state) {
+      state.chat = [];
     },
     applyState(state, action) {
       const s = action.payload || {};
@@ -76,6 +145,17 @@ export const {
   setStatus,
   setError,
   resetParty,
+  setMinimised,
+  setJoining,
+  setJoinError,
+  setConnected,
+  setParticipants,
+  setPresence,
+  clearPresence,
+  setMuted,
+  setRaisedHand,
+  pushChat,
+  clearChat,
 } = partySlice.actions;
 
 export const selectCurrentBundle = (state) => {

@@ -47,4 +47,11 @@ module.exports = async function () {
       handleNext();
     }
   });
+  TrackPlayer.addEventListener('notification-clicked', async () => {
+    // RNTP routes notification clicks through `interceptPlayerActionsTriggeredExternally`
+    // + the app-level Linking listener (EventListeners.js), which navigates the
+    //   player screen. Do NOT touch `window.socket` here — it is not available in
+    //   the headless service context and crashes. Keep the app-level handler the
+    //   single source of truth for notification-click navigation.
+  });
 };

@@ -14,12 +14,57 @@ export function usePartyEvents({ roomId, enabled, dispatch, partyRef, cmdSeqRef,
       if (cmdSeq != null) cmdSeqRef.current = cmdSeq;
       return true;
     };
-    const onState = (s) => {
+    const onState = async (s) => {
       if (!s) return;
       if (s.cmdSeq != null && s.cmdSeq < cmdSeqRef.current) return;
       if (s.cmdSeq != null) cmdSeqRef.current = s.cmdSeq;
       dispatch(applyState({ ...s, roomId }));
       if (s.djSocketId) dispatch(setRole(s.djSocketId === socket.id ? 'dj' : 'listener'));
+
+      // If playback is logically playing on the server, ensure late joiners start playing
+      if (s.status === 'playing' && s.currentIndex >= 0 && s.queue?.[s.currentIndex]) {
+        try {
+          const active = await TrackPlayer.getActiveTrack().catch(() => null);
+          const bundle = s.queue[s.currentIndex];
+          const st = await TrackPlayer.getState().catch(() => null);
+          const isCurrentActive = active && (String(active.id) === String(bundle.queueId) || String(active.id) === String(bundle.videoId));
+          const isActuallyPlaying = isCurrentActive && (st === State.Playing || st === State.Buffering);
+          if (!isActuallyPlaying && bundle) {
+            const base = s.serverNowMs || Date.now();
+            const expectedMs = (s.anchorPosMs || 0) + Math.max(0, Date.now() - (s.anchorServerMs || base));
+            mirrorPartyTrack(dispatch, bundle);
+            let playedOk = false;
+            try {
+              await loadPartyBundle(bundle, expectedMs / 1000);
+              await ensurePlaying();
+              if (expectedMs > 500) {
+                try {
+                  await TrackPlayer.seekTo(expectedMs / 1000);
+                } catch (e) {}
+              }
+              await new Promise((r) => setTimeout(r, 1200));
+              const checkSt = await TrackPlayer.getState().catch(() => null);
+              if (checkSt === State.Playing || checkSt === State.Buffering) {
+                playedOk = true;
+              }
+            } catch (err) {}
+
+            if (!playedOk) {
+              const { resolveBundle } = await import('@/utils/partyDj.utils');
+              const fresh = await resolveBundle({ videoId: bundle.videoId }).catch(() => null);
+              if (fresh) {
+                await loadPartyBundle({ ...bundle, ...fresh }, expectedMs / 1000);
+                await ensurePlaying();
+                if (expectedMs > 500) {
+                  try {
+                    await TrackPlayer.seekTo(expectedMs / 1000);
+                  } catch (e) {}
+                }
+              }
+            }
+          }
+        } catch (e) {}
+      }
     };
     const onLoad = async ({ queueId, bundle, playAtServerMs, positionMs, anchorPosMs, anchorServerMs, cmdSeq }) => {
       if (!accept(cmdSeq)) return;

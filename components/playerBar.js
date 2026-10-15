@@ -15,6 +15,7 @@ import { partyTogglePlayback } from "@/utils/partyPlayback.utils";
 const PlayerBar = () => {
   const navigation = useNavigation();
   const { currentTrack, metadata } = useSelector((state) => state.audio);
+  const { minimised, roomId } = useSelector((s) => s.party);
   const track = new Track(currentTrack);
   const md = new Metadata(metadata);
   const [artist, setArtist] = useState();
@@ -23,31 +24,37 @@ const PlayerBar = () => {
   const playback = usePlaybackState();
   const theme = useTheme();
 
+  useEffect(() => {
+    TrackPlayer.getActiveTrack().then((res) => {
+      if (res) {
+        setArtist(res.artist);
+        setThumbUrl(res.artwork);
+      }
+    }).catch(() => {});
+  }, [currentTrack]);
+
+  // Hide the player bar when room is minimised and room floating bar is present.
+  if (!currentTrack || (roomId && minimised)) {
+    return null;
+  }
+
   const handlePress = () => {
     navigation.navigate("player");
   };
-  const togglePlayBack = async () => {
-    // In a voice room, route to the room (DJ controls / listener no-op).
-    if (await partyTogglePlayback()) return;
-    const currentTrack = await TrackPlayer.getActiveTrackIndex();
-    if (currentTrack >= 0) {
-      if ((playback.state == State.Paused) | (playback.state == State.Ready)) {
-        await TrackPlayer.play();
-      } else {
-        await TrackPlayer.pause();
-      }
-    }
-  };
 
-  useEffect(() => {
-    const getArtist = () => {
-      TrackPlayer.getActiveTrack().then(res=>{
-        setArtist(res.artist)
-        setThumbUrl(res.artwork)
-      })
-    }
-    getArtist();
-  })
+  const togglePlayBack = async () => {
+    if (await partyTogglePlayback()) return;
+    try {
+      const currentTrackIndex = await TrackPlayer.getActiveTrackIndex();
+      if (currentTrackIndex != null && currentTrackIndex >= 0) {
+        if (playback.state === State.Paused || playback.state === State.Ready) {
+          await TrackPlayer.play();
+        } else {
+          await TrackPlayer.pause();
+        }
+      }
+    } catch (e) {}
+  };
 
   return (
     <Pressable onPress={handlePress} style={[styles.container, {borderColor: theme.colors.border, backgroundColor: theme.colors.surface}]}>

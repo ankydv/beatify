@@ -48,15 +48,16 @@ export function usePartyDj({ roomId } = {}) {
     }
   }, [roomId, fail]);
 
-  const play = useCallback(async (queueId = null, positionMs = 0) => {
+  const play = useCallback(async (queueId = null, positionMs = null) => {
     try {
-      const res = await emitWithAck('dj:play-at', { roomId, queueId, positionMs, playAtServerMs: Date.now() + 1500 });
+      const pos = positionMs != null ? positionMs : (party.anchorPosMs || 0);
+      const res = await emitWithAck('dj:play-at', { roomId, queueId, positionMs: pos, playAtServerMs: Date.now() + 1500 });
       if (!res?.success) throw new Error(res?.message || 'Play rejected');
       return res;
     } catch (e) {
       return fail(e);
     }
-  }, [roomId, fail]);
+  }, [roomId, fail, party.anchorPosMs]);
 
   const pause = useCallback(async () => {
     try {

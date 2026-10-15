@@ -12,6 +12,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { Provider } from 'react-redux';
 import EventListeners from './EventListeners'
 import GlobalModal from '../components/GlobalModal';
+import PartyHost from '../components/PartyHost';
 import { StatusBar } from 'expo-status-bar';
 import { PaperProvider, Text, Title, adaptNavigationTheme, useTheme } from 'react-native-paper';
 import { ClerkProvider } from '@clerk/clerk-expo'
@@ -105,6 +106,9 @@ function RootLayoutNav() {
               <Stack.Screen name="offline-library"/>
             </Stack>
             <EventListeners />
+            {/* Party room RUNTIME — must outlive the room screen so back can
+                minimise the room instead of leaving it. */}
+            <PartyHost />
             <GlobalModal />
           </ThemeProvider>
         </PaperProvider>

@@ -105,25 +105,25 @@ export const getStreamExpirySeconds = (url) => {
  */
 export const logPlayableUrl = (details, videoId, source = 'player') => {
   if (!details?.url) {
-   // console.log(`[playable-url][${source}][${videoId}] NO PLAYABLE URL`);
+    console.log(`[playable-url][${source}][${videoId}] NO PLAYABLE URL`);
     return;
   }
   const expiresAt = details.expiresAtSeconds
     ? new Date(details.expiresAtSeconds * 1000).toISOString()
     : 'unknown';
-  // console.log(
-  //   `[playable-url][${source}][${videoId}] itag=${details.itag} mime=${details.mimeType} expires=${expiresAt}\n${details.url}`
-  // );
+  console.log(
+    `[playable-url][${source}][${videoId}] itag=${details.itag} mime=${details.mimeType} expires=${expiresAt}\n${details.url}`
+  );
   const headers = details.headers || {};
   const headerFlags = Object.entries(headers)
     .map(([k, v]) => `-H "${k}: ${v}"`)
     .join(' ');
-  // console.log(
-  //   `[playable-curl][${source}][${videoId}] curl ${headerFlags} "${details.url}" --output test-${videoId}.webm`
-  // );
-  // console.log(
-  //   `[playable-note][${source}][${videoId}] Test in a browser via a PROXY that forwards your UA+Range headers (bare paste 403s by design), OR in-app (headers are attached automatically). Must be same IP before ${expiresAt}.`
-  // );
+  console.log(
+    `[playable-curl][${source}][${videoId}] curl ${headerFlags} "${details.url}" --output test-${videoId}.webm`
+  );
+  console.log(
+    `[playable-note][${source}][${videoId}] Test in a browser via a PROXY that forwards your UA+Range headers (bare paste 403s by design), OR in-app (headers are attached automatically). Must be same IP before ${expiresAt}.`
+  );
 };
 
 const withDecodedUrl = (format) => {
