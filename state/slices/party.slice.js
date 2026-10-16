@@ -34,7 +34,8 @@ const initialState = {
   chat: [], // recent messages, oldest -> newest (capped)
   muted: false,
   raisedHand: false,
-  audioOutput: 'speaker', // 'speaker' | 'earpiece'
+  audioOutput: 'speaker', // 'speaker' | 'earpiece' | 'bluetooth'
+  muteIncoming: false, // true = deafened (silence music & incoming participant voice)
 };
 
 const MAX_CHAT = 200;
@@ -80,7 +81,12 @@ const partySlice = createSlice({
       state.raisedHand = !!action.payload;
     },
     setAudioOutput(state, action) {
-      state.audioOutput = action.payload === 'earpiece' ? 'earpiece' : 'speaker';
+      const mode = String(action.payload || '').toLowerCase();
+      state.audioOutput =
+        mode === 'earpiece' || mode === 'bluetooth' || mode === 'bluetooth_hq' ? mode : 'speaker';
+    },
+    setMuteIncoming(state, action) {
+      state.muteIncoming = !!action.payload;
     },
     pushChat(state, action) {
       const m = action.payload;
@@ -159,6 +165,7 @@ export const {
   setMuted,
   setRaisedHand,
   setAudioOutput,
+  setMuteIncoming,
   pushChat,
   clearChat,
 } = partySlice.actions;

@@ -186,14 +186,20 @@ export const loadAndPlayTrack = createAsyncThunk(
         dispatch(setLyrics(parseSyncedLyrics(lyrics?.syncedLyrics)));
       }
 
-      // Fetch related tracks to update the queue
-      if(isQueueTrack){
-        if(newQueue){
-          dispatch(setQueue(newQueue));
-        }
-        else {
-        const queueTracks = await getQueue(track.videoId);
-        dispatch(setQueue(queueTracks));
+      // Fetch related tracks to update the queue.
+      // If a pre-built queue is provided (e.g. from an album or playlist), use it.
+      // Otherwise, if this is a fresh song selection (not advancing within an existing queue),
+      // fetch related tracks to populate the player's queue.
+      if (newQueue) {
+        dispatch(setQueue(newQueue));
+      } else if (!isQueueTrack) {
+        try {
+          const queueTracks = await getQueue(track.videoId);
+          if (queueTracks) {
+            dispatch(setQueue(queueTracks));
+          }
+        } catch (queueErr) {
+          console.warn("Failed to fetch related tracks for queue:", queueErr);
         }
       }
     } catch (error) {

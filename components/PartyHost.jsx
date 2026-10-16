@@ -4,11 +4,19 @@ import { socket } from '@/configs/socket';
 import { usePartyRoom } from '@/hooks/partyRoom.hooks';
 import { usePartyPlayback } from '@/services/party.service';
 import { usePartyRekey } from '@/hooks/partyRekey.hooks';
-import { pushChat, setPresence } from '@/state/slices/party.slice';
+import { pushChat, setPresence, setAudioOutput } from '@/state/slices/party.slice';
 import { usePartyPresence } from '@/hooks/partyPresence.hooks';
 import WebRTCClient from '@/app/voiceRoom/webRTC';
 import PartyMiniBar from './PartyMiniBar';
 import PartyReactions from './PartyReactions';
+import {
+  getAvailableAudioRoutes,
+  applyAudioOutput,
+  subscribeAudioRoutesChanged,
+  resetAudioOutput,
+  acquirePartyLocks,
+  releasePartyLocks,
+} from '@/utils/audioRoute.utils';
 
 /**
  * Room RUNTIME host — mounted once at the app root (see app/_layout.tsx).
@@ -24,6 +32,8 @@ export default function PartyHost() {
   const participants = useSelector((s) => s.party.participants);
   const muted = useSelector((s) => s.party.muted);
   const raisedHand = useSelector((s) => s.party.raisedHand);
+  const muteIncoming = useSelector((s) => s.party.muteIncoming);
+  const audioOutput = useSelector((s) => s.party.audioOutput || 'speaker');
 
   usePartyRoom();
   usePartyPlayback({ roomId, enabled: !!roomId });
@@ -68,10 +78,61 @@ export default function PartyHost() {
     // and echo presence back into redux forever.
   }, [roomId, dispatch, broadcastPresence, muted, raisedHand]);
 
+  // Auto-detect audio hardware and route appropriately when entering/leaving room
+  useEffect(() => {
+    if (!roomId) {
+      resetAudioOutput().catch(() => {});
+      return undefined;
+    }
+
+    // Keep CPU and Wifi active in background/lock screen while in party room
+    acquirePartyLocks().catch(() => {});
+
+    let isMounted = true;
+    (async () => {
+      try {
+        const routes = await getAvailableAudioRoutes();
+        if (!isMounted) return;
+        // Default to HQ Bluetooth when wireless headphones/earbuds are connected
+        const initialRoute = routes?.bluetooth ? 'bluetooth_hq' : 'speaker';
+        dispatch(setAudioOutput(initialRoute));
+        await applyAudioOutput(initialRoute);
+      } catch (e) {}
+    })();
+
+    // Listen for bluetooth connection / disconnection events
+    const unsubscribe = subscribeAudioRoutesChanged((routes) => {
+      if (!isMounted) return;
+      if (
+        routes?.bluetooth &&
+        audioOutput !== 'earpiece' &&
+        audioOutput !== 'bluetooth' &&
+        audioOutput !== 'bluetooth_hq'
+      ) {
+        dispatch(setAudioOutput('bluetooth_hq'));
+        applyAudioOutput('bluetooth_hq').catch(() => {});
+      } else if (!routes?.bluetooth && (audioOutput === 'bluetooth' || audioOutput === 'bluetooth_hq')) {
+        dispatch(setAudioOutput('speaker'));
+        applyAudioOutput('speaker').catch(() => {});
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [roomId, dispatch]);
+
   return (
     <>
       {roomId ? (
-        <WebRTCClient roomId={roomId} participantsList={participants} muted={muted} />
+        <WebRTCClient
+          roomId={roomId}
+          participantsList={participants}
+          muted={muted}
+          muteIncoming={muteIncoming}
+          audioOutput={audioOutput}
+        />
       ) : null}
       <PartyMiniBar />
       <PartyReactions />

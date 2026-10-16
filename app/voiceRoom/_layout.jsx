@@ -19,7 +19,11 @@ import DJPanel from './DJPanel';
 import PartyTransport from './PartyTransport';
 import { setRoom, setMinimised, resetParty, setJoinError } from '@/state/slices/party.slice';
 import { usePartyPresence, REACTIONS } from '@/hooks/partyPresence.hooks';
-import { toggleAudioOutput } from '@/utils/audioRoute.utils';
+import {
+  setAudioOutputMode,
+  setMuteIncomingSound,
+  getAvailableAudioRoutes,
+} from '@/utils/audioRoute.utils';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const AVATAR = 44;
@@ -42,7 +46,10 @@ const PartyRoom = () => {
   const party = useSelector((s) => s.party);
   const { muted, toggleMute, react } = usePartyPresence();
   const audioOutput = party.audioOutput || 'speaker';
+  const muteIncoming = party.muteIncoming || false;
+
   const [showReactions, setShowReactions] = useState(false);
+  const [showAudioDropdown, setShowAudioDropdown] = useState(false);
 
   // Register this room as ours — PartyHost does the actual joining.
   useEffect(() => {
@@ -71,10 +78,6 @@ const PartyRoom = () => {
     router.back();
   };
 
-  const onToggleAudio = () => {
-    toggleAudioOutput(dispatch);
-  };
-
   const onSelectReaction = (emoji) => {
     react(emoji);
     setShowReactions(false);
@@ -87,9 +90,11 @@ const PartyRoom = () => {
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       {/* ---------------- header ---------------- */}
       <View style={styles.header}>
-        <View style={styles.livePill}>
+        <View style={[styles.livePill, !party.connected && styles.livePillOff]}>
           <View style={[styles.liveDot, !party.connected && styles.liveDotOff]} />
-          <Text style={styles.liveText}>{party.connected ? 'LIVE' : 'OFF'}</Text>
+          <Text style={[styles.liveText, !party.connected && styles.liveTextOff]}>
+            {party.connected ? 'LIVE' : party.joining ? 'JOINING' : 'RECONNECTING'}
+          </Text>
         </View>
         <View style={styles.headerMeta}>
           <View style={styles.roomNameContainer}>
@@ -158,6 +163,212 @@ const PartyRoom = () => {
         </View>
       ) : null}
 
+      {/* ---------------- Audio Output & Sound Dropdown Menu ---------------- */}
+      {showAudioDropdown ? (
+        <View style={styles.audioDropdownOverlay}>
+          <TouchableOpacity
+            style={styles.dropdownBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowAudioDropdown(false)}
+          />
+          <View style={styles.audioDropdown}>
+            <View style={styles.dropdownHeader}>
+              <View style={styles.dropdownTitleRow}>
+                <Icon name="tune-variant" size={16} color="#a78bfa" />
+                <Text style={styles.dropdownTitle}>Playback & Audio Options</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowAudioDropdown(false)}
+                hitSlop={8}
+                style={styles.dropdownCloseBtn}
+              >
+                <Icon name="close" size={16} color="#8f86b3" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Output Destination Options */}
+            <View style={styles.routesList}>
+              <TouchableOpacity
+                style={[
+                  styles.routeItem,
+                  audioOutput === 'speaker' && styles.routeItemActive,
+                ]}
+                onPress={() => {
+                  setAudioOutputMode('speaker', dispatch);
+                  setShowAudioDropdown(false);
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={styles.routeIconWrap}>
+                  <Icon
+                    name="volume-high"
+                    size={18}
+                    color={audioOutput === 'speaker' ? '#a78bfa' : '#8f86b3'}
+                  />
+                </View>
+                <View style={styles.routeMeta}>
+                  <Text
+                    style={[
+                      styles.routeLabel,
+                      audioOutput === 'speaker' && styles.routeLabelActive,
+                    ]}
+                  >
+                    Speaker
+                  </Text>
+                  <Text style={styles.routeSub}>Phone loudspeaker</Text>
+                </View>
+                {audioOutput === 'speaker' ? (
+                  <Icon name="check" size={18} color="#a78bfa" />
+                ) : null}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.routeItem,
+                  audioOutput === 'earpiece' && styles.routeItemActive,
+                ]}
+                onPress={() => {
+                  setAudioOutputMode('earpiece', dispatch);
+                  setShowAudioDropdown(false);
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={styles.routeIconWrap}>
+                  <Icon
+                    name="phone-in-talk"
+                    size={18}
+                    color={audioOutput === 'earpiece' ? '#fbbf24' : '#8f86b3'}
+                  />
+                </View>
+                <View style={styles.routeMeta}>
+                  <Text
+                    style={[
+                      styles.routeLabel,
+                      audioOutput === 'earpiece' && styles.routeLabelActive,
+                    ]}
+                  >
+                    Earpiece
+                  </Text>
+                  <Text style={styles.routeSub}>Top receiver for private listening</Text>
+                </View>
+                {audioOutput === 'earpiece' ? (
+                  <Icon name="check" size={18} color="#fbbf24" />
+                ) : null}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.routeItem,
+                  audioOutput === 'bluetooth_hq' && styles.routeItemActive,
+                ]}
+                onPress={() => {
+                  setAudioOutputMode('bluetooth_hq', dispatch);
+                  setShowAudioDropdown(false);
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={styles.routeIconWrap}>
+                  <Icon
+                    name="headphones"
+                    size={18}
+                    color={audioOutput === 'bluetooth_hq' ? '#38bdf8' : '#8f86b3'}
+                  />
+                </View>
+                <View style={styles.routeMeta}>
+                  <Text
+                    style={[
+                      styles.routeLabel,
+                      audioOutput === 'bluetooth_hq' && styles.routeLabelActive,
+                    ]}
+                  >
+                    Bluetooth (HQ Audio)
+                  </Text>
+                  <Text style={styles.routeSub}>HD stereo playback (uses phone mic)</Text>
+                </View>
+                {audioOutput === 'bluetooth_hq' ? (
+                  <Icon name="check" size={18} color="#38bdf8" />
+                ) : null}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.routeItem,
+                  audioOutput === 'bluetooth' && styles.routeItemActive,
+                ]}
+                onPress={() => {
+                  setAudioOutputMode('bluetooth', dispatch);
+                  setShowAudioDropdown(false);
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={styles.routeIconWrap}>
+                  <Icon
+                    name="headset"
+                    size={18}
+                    color={audioOutput === 'bluetooth' ? '#818cf8' : '#8f86b3'}
+                  />
+                </View>
+                <View style={styles.routeMeta}>
+                  <Text
+                    style={[
+                      styles.routeLabel,
+                      audioOutput === 'bluetooth' && styles.routeLabelActive,
+                    ]}
+                  >
+                    Bluetooth (Hands-Free)
+                  </Text>
+                  <Text style={styles.routeSub}>Wireless earbuds mic & audio</Text>
+                </View>
+                {audioOutput === 'bluetooth' ? (
+                  <Icon name="check" size={18} color="#818cf8" />
+                ) : null}
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.dropdownDivider} />
+
+            {/* Mute Incoming Sound (Voice + Music) */}
+            <TouchableOpacity
+              style={[
+                styles.muteIncomingRow,
+                muteIncoming && styles.muteIncomingRowActive,
+              ]}
+              onPress={() => setMuteIncomingSound(!muteIncoming, dispatch)}
+              activeOpacity={0.75}
+            >
+              <View style={styles.routeIconWrap}>
+                <Icon
+                  name={muteIncoming ? 'volume-off' : 'volume-high'}
+                  size={18}
+                  color={muteIncoming ? '#ef4444' : '#8f86b3'}
+                />
+              </View>
+              <View style={styles.routeMeta}>
+                <Text
+                  style={[
+                    styles.routeLabel,
+                    muteIncoming && styles.muteIncomingLabelActive,
+                  ]}
+                >
+                  Mute Room Audio
+                </Text>
+                <Text style={styles.routeSub}>Silence music & incoming voices</Text>
+              </View>
+              <View style={[styles.togglePill, muteIncoming && styles.togglePillActive]}>
+                <Text
+                  style={[
+                    styles.togglePillText,
+                    muteIncoming && styles.togglePillTextActive,
+                  ]}
+                >
+                  {muteIncoming ? 'MUTED' : 'OFF'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+
       {/* ---------------- COMPACT CONTROL BAR ---------------- */}
       <View style={styles.controls}>
         <ControlButton
@@ -168,15 +379,48 @@ const PartyRoom = () => {
         />
 
         <ControlButton
-          label={audioOutput === 'earpiece' ? 'Earpiece' : 'Speaker'}
-          onPress={onToggleAudio}
-          icon={audioOutput === 'earpiece' ? 'phone-in-talk' : 'volume-high'}
-          variant="audio"
+          label={
+            muteIncoming
+              ? 'Sound Off'
+              : audioOutput === 'bluetooth_hq'
+              ? 'BT (HQ)'
+              : audioOutput === 'bluetooth'
+              ? 'BT (Mic)'
+              : audioOutput === 'earpiece'
+              ? 'Earpiece'
+              : 'Speaker'
+          }
+          onPress={() => {
+            setShowAudioDropdown((prev) => !prev);
+            setShowReactions(false);
+          }}
+          icon={
+            muteIncoming
+              ? 'volume-off'
+              : audioOutput === 'bluetooth_hq'
+              ? 'headphones'
+              : audioOutput === 'bluetooth'
+              ? 'headset'
+              : audioOutput === 'earpiece'
+              ? 'phone-in-talk'
+              : 'volume-high'
+          }
+          variant={
+            muteIncoming
+              ? 'danger'
+              : audioOutput === 'bluetooth_hq' || audioOutput === 'bluetooth'
+              ? 'bluetooth'
+              : 'audio'
+          }
+          active={showAudioDropdown}
         />
 
         <ControlButton
           label="React"
-          onPress={() => setShowReactions((prev) => !prev)}
+          onPress={() => {
+            setShowReactions((prev) => !prev);
+            setShowAudioDropdown(false);
+          }}
           icon="party-popper"
           active={showReactions}
           variant="party"
@@ -270,6 +514,7 @@ function ControlButton({ label, onPress, icon, variant, active }) {
   const getStyle = () => {
     if (variant === 'danger') return styles.btnDanger;
     if (variant === 'success') return styles.btnSuccess;
+    if (variant === 'bluetooth') return styles.btnBluetooth;
     if (variant === 'audio') return styles.btnAudio;
     if (variant === 'party') return styles.btnParty;
     return styles.btnDefault;
@@ -278,6 +523,7 @@ function ControlButton({ label, onPress, icon, variant, active }) {
   const getIconColor = () => {
     if (variant === 'danger') return '#ef4444';
     if (variant === 'success') return '#22c55e';
+    if (variant === 'bluetooth') return '#38bdf8';
     if (variant === 'audio') return '#a78bfa';
     if (variant === 'party') return '#f472b6';
     return '#fff';
@@ -318,9 +564,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 3,
   },
+  livePillOff: {
+    backgroundColor: 'rgba(120,113,108,0.14)',
+    borderColor: 'rgba(120,113,108,0.4)',
+  },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ff2d55' },
-  liveDotOff: { backgroundColor: '#666' },
+  liveDotOff: { backgroundColor: '#888' },
   liveText: { color: '#ff6b81', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  liveTextOff: { color: '#aaa' },
   headerMeta: { flex: 1 },
   roomName: { color: '#fff', fontSize: 14, fontWeight: '700' },
   headerSub: { color: '#8f86b3', fontSize: 10, marginTop: 1 },
@@ -348,7 +599,13 @@ const styles = StyleSheet.create({
 
   /* participant strip */
   stripWrap: { paddingTop: 4, paddingBottom: 2 },
-  stripHead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, marginBottom: 5 },
+  stripHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    marginBottom: 5,
+  },
   stripTitle: { color: '#cfc6f5', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
   countChip: {
     minWidth: 18,
@@ -375,7 +632,12 @@ const styles = StyleSheet.create({
   ringMe: { borderColor: '#8b5cf6' },
   ringDj: { borderColor: '#ffca28', borderWidth: 2 },
   ringSpeaking: { borderColor: '#22c55e', borderWidth: 2 },
-  avatarImg: { width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2, backgroundColor: '#2a2340' },
+  avatarImg: {
+    width: AVATAR,
+    height: AVATAR,
+    borderRadius: AVATAR / 2,
+    backgroundColor: '#2a2340',
+  },
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },
   avatarInitial: { color: '#c9b6ff', fontSize: 18, fontWeight: '700' },
   muteBadge: {
@@ -416,7 +678,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  personName: { color: '#9a90bd', fontSize: 9, marginTop: 3, maxWidth: 54, textAlign: 'center' },
+  personName: {
+    color: '#9a90bd',
+    fontSize: 9,
+    marginTop: 3,
+    maxWidth: 54,
+    textAlign: 'center',
+  },
   personNameMe: { color: '#fff', fontWeight: '700' },
 
   /* the single flexible region (flex: 1 maximized) */
@@ -445,6 +713,130 @@ const styles = StyleSheet.create({
   },
   reactionBtn: { padding: 4 },
   reactionEmoji: { fontSize: 22 },
+
+  /* Audio Output & Sound Dropdown */
+  audioDropdownOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    zIndex: 50,
+  },
+  dropdownBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
+  audioDropdown: {
+    backgroundColor: '#171128',
+    marginHorizontal: 12,
+    marginBottom: 58,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#302450',
+    padding: 14,
+    shadowColor: '#a78bfa',
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  dropdownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#2b214a',
+  },
+  dropdownTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  dropdownTitle: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  dropdownCloseBtn: {
+    padding: 2,
+  },
+  routesList: {
+    gap: 6,
+  },
+  routeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  routeItemActive: {
+    backgroundColor: 'rgba(167, 139, 250, 0.12)',
+    borderColor: 'rgba(167, 139, 250, 0.4)',
+  },
+  routeIconWrap: {
+    width: 28,
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  routeMeta: {
+    flex: 1,
+  },
+  routeLabel: {
+    color: '#cfc6f5',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  routeLabelActive: {
+    color: '#fff',
+  },
+  routeSub: {
+    color: '#7f75a6',
+    fontSize: 10,
+    marginTop: 1,
+  },
+  dropdownDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#2b214a',
+    marginVertical: 8,
+  },
+  muteIncomingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  muteIncomingRowActive: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+  },
+  muteIncomingLabelActive: {
+    color: '#f87171',
+  },
+  togglePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  togglePillActive: {
+    backgroundColor: '#ef4444',
+  },
+  togglePillText: {
+    color: '#8f86b3',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  togglePillTextActive: {
+    color: '#fff',
+  },
 
   /* compact control bar */
   controls: {
@@ -479,6 +871,10 @@ const styles = StyleSheet.create({
   btnAudio: {
     backgroundColor: 'rgba(139, 92, 246, 0.16)',
     borderColor: 'rgba(139, 92, 246, 0.4)',
+  },
+  btnBluetooth: {
+    backgroundColor: 'rgba(56, 189, 248, 0.16)',
+    borderColor: 'rgba(56, 189, 248, 0.4)',
   },
   btnParty: {
     backgroundColor: 'rgba(236, 72, 153, 0.16)',

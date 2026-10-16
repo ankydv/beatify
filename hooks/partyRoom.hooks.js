@@ -169,15 +169,9 @@ export function usePartyRoom() {
       if (joinedRoomRef.current === target && joinedSocketIdRef.current === socket.id) return;
       if (joinedRoomRef.current === target && joinedSocketIdRef.current &&
           joinedSocketIdRef.current !== socket.id) {
-        // Socket identity changed under us — keep the room id, re-announce.
+        // Socket identity changed under us — clear previous and re-join room
         joinedRoomRef.current = null;
         joinedSocketIdRef.current = null;
-      }
-      const res = await emitWithAck('dj:state-request', { roomId: target });
-      if (res?.success || res?.state) {
-        joinedRoomRef.current = target;
-        joinedSocketIdRef.current = socket.id;
-        return;
       }
       await joinRoom(target);
     } catch (e) {}
@@ -225,7 +219,14 @@ export function usePartyRoom() {
     dispatch(setConnected(socket.connected));
 
     const appStateSub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') bootstrap();
+      if (state === 'active') {
+        bootstrap();
+        if (roomIdRef.current) {
+          import('@/utils/partyPlayback.utils').then(({ fetchLatestPartyState }) => {
+            fetchLatestPartyState(roomIdRef.current, dispatch).catch(() => {});
+          });
+        }
+      }
     });
     // The socket often reconnects before AppState flips; bootstrap early too.
     const timer = setTimeout(bootstrap, 250);

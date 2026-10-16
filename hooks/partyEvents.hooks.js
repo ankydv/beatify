@@ -1,3 +1,4 @@
+import { AppState } from 'react-native';
 import TrackPlayer, { State } from 'react-native-track-player';
 import { useEffect } from 'react';
 import { socket, emitWithAck } from '@/configs/socket';
@@ -109,7 +110,8 @@ export function usePartyEvents({ roomId, enabled, dispatch, partyRef, cmdSeqRef,
       try {
         await loadPartyBundle(bundle, ((anchorPosMs ?? positionMs) || 0) / 1000);
         const delay = delayRef.current ? delayRef.current(playAtServerMs) : Math.max(0, (playAtServerMs || 0) - Date.now());
-        scheduleAt(delay, async () => {
+        const isBackground = AppState.currentState !== 'active';
+        const startLoadingPlayback = async () => {
           dispatch(setLoading(null));
           dispatch(applyState({ status: 'playing' }));
           await ensurePlaying();
@@ -117,7 +119,12 @@ export function usePartyEvents({ roomId, enabled, dispatch, partyRef, cmdSeqRef,
             const { applyAudioOutput } = await import('@/utils/audioRoute.utils');
             applyAudioOutput().catch(() => {});
           } catch (e) {}
-        });
+        };
+        if (isBackground || delay <= 150) {
+          await startLoadingPlayback();
+        } else {
+          scheduleAt(delay, startLoadingPlayback);
+        }
 
         // Verification after scheduled start + buffer
         setTimeout(async () => {
@@ -132,7 +139,7 @@ export function usePartyEvents({ roomId, enabled, dispatch, partyRef, cmdSeqRef,
               }
             }
           } catch (err) {}
-        }, delay + 1500);
+        }, (isBackground ? 500 : delay + 1500));
       } catch (e) {
         dispatch(setLoading(null));
         try {
@@ -141,10 +148,16 @@ export function usePartyEvents({ roomId, enabled, dispatch, partyRef, cmdSeqRef,
           if (fresh) {
             await loadPartyBundle({ ...bundle, ...fresh }, ((anchorPosMs ?? positionMs) || 0) / 1000);
             const delay = delayRef.current ? delayRef.current(playAtServerMs) : Math.max(0, (playAtServerMs || 0) - Date.now());
-            scheduleAt(delay, async () => {
+            const isBackground = AppState.currentState !== 'active';
+            if (isBackground || delay <= 150) {
               dispatch(applyState({ status: 'playing' }));
               await ensurePlaying();
-            });
+            } else {
+              scheduleAt(delay, async () => {
+                dispatch(applyState({ status: 'playing' }));
+                await ensurePlaying();
+              });
+            }
           }
         } catch (err) {}
       }
@@ -185,14 +198,21 @@ export function usePartyEvents({ roomId, enabled, dispatch, partyRef, cmdSeqRef,
           } catch (e) {}
         }
         const delay = delayRef.current ? delayRef.current(playAtServerMs) : Math.max(0, (playAtServerMs || 0) - Date.now());
-        scheduleAt(delay, async () => {
+        const isBackground = AppState.currentState !== 'active';
+        const startPlayback = async () => {
           dispatch(applyState({ status: 'playing' }));
           await ensurePlaying();
           try {
             const { applyAudioOutput } = await import('@/utils/audioRoute.utils');
             applyAudioOutput().catch(() => {});
           } catch (e) {}
-        });
+        };
+
+        if (isBackground || delay <= 150) {
+          await startPlayback();
+        } else {
+          scheduleAt(delay, startPlayback);
+        }
 
         setTimeout(async () => {
           try {

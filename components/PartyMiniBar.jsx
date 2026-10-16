@@ -55,8 +55,16 @@ export default function PartyMiniBar() {
       <View style={styles.bar}>
         <TouchableOpacity style={styles.main} onPress={expand} activeOpacity={0.85}>
           <View style={styles.liveCol}>
-            <Animated.View style={[styles.liveDot, { opacity: pulse }]} />
-            <Text style={styles.liveText}>LIVE</Text>
+            <Animated.View
+              style={[
+                styles.liveDot,
+                { opacity: party.connected ? pulse : 0.4 },
+                !party.connected && styles.liveDotOff,
+              ]}
+            />
+            <Text style={[styles.liveText, !party.connected && styles.liveTextOff]}>
+              {party.connected ? 'LIVE' : 'SYNC'}
+            </Text>
           </View>
           <View style={styles.meta}>
             <Text style={styles.title} numberOfLines={1}>
@@ -107,7 +115,9 @@ const styles = StyleSheet.create({
   main: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   liveCol: { alignItems: 'center', width: 34 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ff2d55' },
+  liveDotOff: { backgroundColor: '#888' },
   liveText: { color: '#ff2d55', fontSize: 8, fontWeight: '800', letterSpacing: 0.5, marginTop: 2 },
+  liveTextOff: { color: '#aaa' },
   meta: { flex: 1 },
   title: { color: '#fff', fontSize: 13, fontWeight: '700' },
   sub: { color: '#a99ce0', fontSize: 11, marginTop: 1 },

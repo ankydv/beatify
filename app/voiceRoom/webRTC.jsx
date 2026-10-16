@@ -6,10 +6,10 @@ import {
   getLocalStream,
   ensureMicPermission,
   setLocalMicEnabled,
-  setSpeakerphoneOn,
   stopLocalStream,
   closeAllPeerConnections,
 } from "@/utils/webrtc.utils";
+import { applyAudioOutput, resetAudioOutput } from "@/utils/audioRoute.utils";
 import {
   RTCSessionDescription,
   RTCIceCandidate,
@@ -32,7 +32,13 @@ const peerSocketId = (p) => {
 };
 
 // Mesh voice room: one RTCPeerConnection per remote peer.
-const WebRTCClient = ({ roomId, participantsList = [], muted = false }) => {
+const WebRTCClient = ({
+  roomId,
+  participantsList = [],
+  muted = false,
+  muteIncoming = false,
+  audioOutput = 'speaker',
+}) => {
   const pcsRef = useRef(new Map());
   const queuesRef = useRef(new Map());
   const localStreamRef = useRef(null);
@@ -170,6 +176,11 @@ const WebRTCClient = ({ roomId, participantsList = [], muted = false }) => {
       }
       if (stream) {
         const tracks = stream.getAudioTracks?.() ?? [];
+        if (muteIncoming) {
+          tracks.forEach((t) => {
+            t.enabled = false;
+          });
+        }
         console.log(
           "[voice] remote audio from",
           peerId,
@@ -226,18 +237,7 @@ const WebRTCClient = ({ roomId, participantsList = [], muted = false }) => {
 
     const startVoice = async () => {
       try {
-        try {
-          setSpeakerphoneOn(true);
-        } catch (e) {}
-        // Route remote voice to the loud speaker (not the earpiece)
-        if (mediaDevices?.setAudioMode) {
-          try {
-            await mediaDevices.setAudioMode({
-              allowHapticsAndSystemSoundsDuringRecording: false,
-              playThroughEarpieceAndroid: false,
-            });
-          } catch (e) {}
-        }
+        await applyAudioOutput(audioOutput).catch(() => {});
         const stream = await ensureMic();
         if (!mountedRef.current) {
           stopLocalStream(stream);
@@ -359,16 +359,20 @@ const WebRTCClient = ({ roomId, participantsList = [], muted = false }) => {
       socket.off("answer", onAnswer);
       socket.off("ice-candidate", onIce);
       socket.off("user-joined", onUserJoined);
-      socket.off("user-left", onUserLeft);
-      try {
-        setSpeakerphoneOn(true);
-      } catch (e) {}
+      resetAudioOutput().catch(() => {});
       closeAllPeerConnections(pcsRef);
       stopLocalStream(localStreamRef.current);
       localStreamRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
+
+  // Synchronize audio output destination whenever it changes
+  useEffect(() => {
+    if (mountedRef.current) {
+      applyAudioOutput(audioOutput).catch(() => {});
+    }
+  }, [audioOutput]);
 
   useEffect(() => {
     if (!localStreamRef.current) return;
@@ -384,6 +388,14 @@ const WebRTCClient = ({ roomId, participantsList = [], muted = false }) => {
   useEffect(() => {
     setLocalMicEnabled(localStreamRef.current, !muted);
   }, [muted]);
+
+  useEffect(() => {
+    Object.values(remoteStreams).forEach((stream) => {
+      stream?.getAudioTracks?.()?.forEach((track) => {
+        track.enabled = !muteIncoming;
+      });
+    });
+  }, [remoteStreams, muteIncoming]);
 
   const entries = Object.entries(remoteStreams);
 
