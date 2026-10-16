@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import axios from 'axios';
 import { usePartyDj } from '@/hooks/partyDj.hooks';
@@ -8,6 +9,7 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL2;
 
 export default function PartySearch({ roomId }) {
   const dj = usePartyDj({ roomId });
+  const party = useSelector((s) => s.party);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -39,12 +41,49 @@ export default function PartySearch({ roomId }) {
     }
   };
 
+  const resolveAddedQueueId = async (res, song) => {
+    if (res?.queueId) return res.queueId;
+    if (res?.item?.queueId) return res.item.queueId;
+    if (res?.track?.queueId) return res.track.queueId;
+    if (Array.isArray(res?.queue) && res.queue.length > 0) {
+      const match = res.queue.find((q) => q.videoId === song.videoId) || res.queue[0];
+      if (match?.queueId) return match.queueId;
+    }
+    // Poll Redux store briefly in case server pushed dj:queue-updated with queue items
+    try {
+      const { store } = await import('@/state/store');
+      for (let attempt = 0; attempt < 12; attempt++) {
+        const currentQueue = store.getState()?.party?.queue;
+        if (Array.isArray(currentQueue) && currentQueue.length > 0) {
+          const match = currentQueue.find((item) => item.videoId === song.videoId) || currentQueue[0];
+          if (match?.queueId) return match.queueId;
+        }
+        await new Promise((r) => setTimeout(r, 60));
+      }
+    } catch (_) {}
+    return null;
+  };
+
   const onTap = async (song) => {
     setBusy(song.videoId);
     setAddError(null);
     try {
-      if (dj.isDj) await dj.queueAdd(song);
-      else await dj.requestSong(song);
+      const wasEmpty =
+        !party.queue ||
+        party.queue.length === 0 ||
+        (party.status === 'idle' && party.currentIndex === -1);
+
+      if (dj.isDj) {
+        const res = await dj.queueAdd(song);
+        if (wasEmpty) {
+          const queueId = await resolveAddedQueueId(res, song);
+          if (queueId) {
+            await dj.load(queueId);
+          }
+        }
+      } else {
+        await dj.requestSong(song);
+      }
     } catch (e) {
       // queueAdd/requestSong already put the message in party.error via
       // fail(); mirror it locally so it's visible next to the tapped row.

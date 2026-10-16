@@ -22,7 +22,7 @@ export function usePartyDj({ roomId } = {}) {
       const bundle = await resolveBundle(song);
       const res = await emitWithAck('dj:queue-add', { roomId, bundle });
       if (!res?.success) throw new Error(res?.message || 'Queue add rejected');
-      return res;
+      return { ...res, bundle };
     } catch (e) {
       return fail(e);
     }

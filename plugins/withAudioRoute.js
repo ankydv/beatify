@@ -14,6 +14,7 @@ const path = require('path');
 const MODULE_DIR = path.join(__dirname, '..', 'modules', 'audio-route');
 const MODULE_FILE = 'AudioRouteModule.kt';
 const PACKAGE_FILE = 'AudioRoutePackage.kt';
+const SERVICE_FILE = 'PartyVoiceService.kt';
 
 function withAudioRoute(config) {
   // 1. Copy the .kt sources into the prebuilt android project
@@ -32,7 +33,7 @@ function withAudioRoute(config) {
         ...pkg.split('.'),
       );
       fs.mkdirSync(targetDir, { recursive: true });
-      for (const file of [MODULE_FILE, PACKAGE_FILE]) {
+      for (const file of [MODULE_FILE, PACKAGE_FILE, SERVICE_FILE]) {
         const src = path.join(MODULE_DIR, file);
         const dest = path.join(targetDir, file);
         let content = fs.readFileSync(src, 'utf8');
@@ -85,6 +86,7 @@ function withAudioRoute(config) {
       'android.permission.FOREGROUND_SERVICE',
       'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
       'android.permission.FOREGROUND_SERVICE_MICROPHONE',
+      'android.permission.POST_NOTIFICATIONS',
     ];
     if (!androidManifest['uses-permission']) {
       androidManifest['uses-permission'] = [];
@@ -96,6 +98,25 @@ function withAudioRoute(config) {
         });
       }
     }
+
+    // Register PartyVoiceService in AndroidManifest
+    const app = androidManifest.application?.[0];
+    if (app) {
+      if (!app.service) app.service = [];
+      const pkg = AndroidConfig.Package.getPackage(config) || 'com.ankydv.beatify';
+      const hasService = app.service.some((s) => s.$?.['android:name'] === '.PartyVoiceService' || s.$?.['android:name'] === `${pkg}.PartyVoiceService`);
+      if (!hasService) {
+        app.service.push({
+          $: {
+            'android:name': '.PartyVoiceService',
+            'android:enabled': 'true',
+            'android:exported': 'false',
+            'android:foregroundServiceType': 'microphone',
+          },
+        });
+      }
+    }
+
     return config;
   });
 

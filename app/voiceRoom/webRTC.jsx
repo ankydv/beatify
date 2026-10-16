@@ -156,7 +156,7 @@ const WebRTCClient = ({
       });
     }
     pc.onicecandidate = (event) => {
-      if (event.candidate && socket.connected) {
+      if (event.candidate) {
         socket.emit("ice-candidate", {
           candidate: event.candidate,
           roomId,
@@ -165,7 +165,12 @@ const WebRTCClient = ({
       }
     };
     pc.oniceconnectionstatechange = () => {
-      console.log("[voice] ICE " + peerId + ":", pc.iceConnectionState);
+      const state = pc.iceConnectionState;
+      console.log("[voice] ICE " + peerId + ":", state);
+      if (state === "failed") {
+        console.log("[voice] ICE failed for " + peerId + ", attempting restart…");
+        restartIceForPeer(peerId);
+      }
     };
     pc.ontrack = (event) => {
       // Fallback: some RN-WebRTC builds deliver onaddstream / empty
@@ -199,6 +204,32 @@ const WebRTCClient = ({
     };
     pcsRef.current.set(peerId, pc);
     return pc;
+  };
+
+  const restartIceForPeer = async (peerId) => {
+    if (!mountedRef.current) return;
+    const pc = pcsRef.current.get(peerId);
+    if (!pc) return;
+    try {
+      if (socket.id && peerId && socket.id < peerId) {
+        await ensureMic();
+        if (!mountedRef.current) return;
+        const offer = await pc.createOffer({
+          iceRestart: true,
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: false,
+        });
+        await pc.setLocalDescription(offer);
+        socket.emit("offer", {
+          sdp: { type: offer.type, sdp: offer.sdp },
+          roomId,
+          to: peerId,
+        });
+        console.log("[voice] ICE restart offer sent to", peerId);
+      }
+    } catch (e) {
+      console.warn("[voice] ICE restart failed for", peerId, e?.message ?? e);
+    }
   };
 
   const offerToPeer = async (peerId) => {
@@ -349,11 +380,26 @@ const WebRTCClient = ({
       if (userId) removePeer(userId);
     };
 
+    const onSocketConnect = () => {
+      console.log("[voice] socket connected/reconnected for room", roomId);
+      if (!mountedRef.current) return;
+      (participantsList ?? []).forEach((p) => {
+        const id = peerSocketId(p);
+        if (id && id !== socket.id) {
+          const pc = pcsRef.current.get(id);
+          if (!pc || pc.iceConnectionState === "failed" || pc.iceConnectionState === "disconnected") {
+            maybeOfferToPeer(id);
+          }
+        }
+      });
+    };
+
     socket.on("offer", onOffer);
     socket.on("answer", onAnswer);
     socket.on("ice-candidate", onIce);
     socket.on("user-joined", onUserJoined);
     socket.on("user-left", onUserLeft);
+    socket.on("connect", onSocketConnect);
 
     startVoice();
 
@@ -363,6 +409,8 @@ const WebRTCClient = ({
       socket.off("answer", onAnswer);
       socket.off("ice-candidate", onIce);
       socket.off("user-joined", onUserJoined);
+      socket.off("user-left", onUserLeft);
+      socket.off("connect", onSocketConnect);
       resetAudioOutput().catch(() => {});
       closeAllPeerConnections(pcsRef);
       stopLocalStream(localStreamRef.current);

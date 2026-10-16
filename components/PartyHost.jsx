@@ -115,6 +115,7 @@ export default function PartyHost() {
     return () => {
       isMounted = false;
       unsubscribe();
+      resetAudioOutput().catch(() => {});
     };
   }, [roomId, dispatch]);
 

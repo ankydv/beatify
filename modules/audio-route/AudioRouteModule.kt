@@ -328,7 +328,8 @@ class AudioRouteModule(private val reactContext: ReactApplicationContext) :
                     }
                 } catch (_: Exception) {}
 
-                // Release party locks if still held
+                // Release party locks and stop foreground service if running
+                stopPartyVoiceServiceInternal()
                 if (wakeLock?.isHeld == true) {
                     try { wakeLock?.release() } catch (_: Exception) {}
                     wakeLock = null
@@ -346,14 +347,69 @@ class AudioRouteModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
+    private fun startPartyVoiceServiceInternal() {
+        try {
+            val intent = Intent(reactContext, PartyVoiceService::class.java).apply {
+                action = PartyVoiceService.ACTION_START
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                reactContext.startForegroundService(intent)
+            } else {
+                reactContext.startService(intent)
+            }
+            Log.d(TAG, "PartyVoiceService start intent dispatched")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to start PartyVoiceService: ${e.message}")
+        }
+    }
+
+    private fun stopPartyVoiceServiceInternal() {
+        try {
+            val intent = Intent(reactContext, PartyVoiceService::class.java).apply {
+                action = PartyVoiceService.ACTION_STOP
+            }
+            reactContext.startService(intent)
+            Log.d(TAG, "PartyVoiceService stop intent dispatched")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to stop PartyVoiceService: ${e.message}")
+        }
+    }
+
+    @ReactMethod
+    fun startPartyVoiceService(promise: Promise) {
+        Handler(Looper.getMainLooper()).post {
+            try {
+                startPartyVoiceServiceInternal()
+                promise.resolve(true)
+            } catch (e: Exception) {
+                promise.reject("SERVICE_ERROR", e.message, e)
+            }
+        }
+    }
+
+    @ReactMethod
+    fun stopPartyVoiceService(promise: Promise) {
+        Handler(Looper.getMainLooper()).post {
+            try {
+                stopPartyVoiceServiceInternal()
+                promise.resolve(true)
+            } catch (e: Exception) {
+                promise.reject("SERVICE_ERROR", e.message, e)
+            }
+        }
+    }
+
     /**
-     * Holds a partial wake lock and high-perf wifi lock while a party room is active,
-     * preventing Android CPU sleep / wifi throttle when playback pauses or screen locks.
+     * Holds a partial wake lock, high-perf wifi lock, and launches PartyVoiceService
+     * as a Foreground Service with type="microphone" while a party room is active,
+     * preventing Android CPU sleep, wifi throttle, and background mic cutoff.
      */
     @ReactMethod
     fun acquirePartyLocks(promise: Promise) {
         Handler(Looper.getMainLooper()).post {
             try {
+                startPartyVoiceServiceInternal()
+
                 if (wakeLock == null) {
                     val powerManager = reactContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
                     wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Beatify:PartyWakeLock")?.apply {
@@ -391,12 +447,14 @@ class AudioRouteModule(private val reactContext: ReactApplicationContext) :
     }
 
     /**
-     * Releases party wake and wifi locks when leaving the party room.
+     * Releases party wake and wifi locks and stops PartyVoiceService when leaving the party room.
      */
     @ReactMethod
     fun releasePartyLocks(promise: Promise) {
         Handler(Looper.getMainLooper()).post {
             try {
+                stopPartyVoiceServiceInternal()
+
                 if (wakeLock?.isHeld == true) {
                     wakeLock?.release()
                     Log.d(TAG, "Party wakeLock released")
