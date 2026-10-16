@@ -225,75 +225,7 @@ const PartyRoom = () => {
               <TouchableOpacity
                 style={[
                   styles.routeItem,
-                  audioOutput === 'earpiece' && styles.routeItemActive,
-                ]}
-                onPress={() => {
-                  setAudioOutputMode('earpiece', dispatch);
-                  setShowAudioDropdown(false);
-                }}
-                activeOpacity={0.75}
-              >
-                <View style={styles.routeIconWrap}>
-                  <Icon
-                    name="phone-in-talk"
-                    size={18}
-                    color={audioOutput === 'earpiece' ? '#fbbf24' : '#8f86b3'}
-                  />
-                </View>
-                <View style={styles.routeMeta}>
-                  <Text
-                    style={[
-                      styles.routeLabel,
-                      audioOutput === 'earpiece' && styles.routeLabelActive,
-                    ]}
-                  >
-                    Earpiece
-                  </Text>
-                  <Text style={styles.routeSub}>Top receiver for private listening</Text>
-                </View>
-                {audioOutput === 'earpiece' ? (
-                  <Icon name="check" size={18} color="#fbbf24" />
-                ) : null}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.routeItem,
-                  audioOutput === 'bluetooth_hq' && styles.routeItemActive,
-                ]}
-                onPress={() => {
-                  setAudioOutputMode('bluetooth_hq', dispatch);
-                  setShowAudioDropdown(false);
-                }}
-                activeOpacity={0.75}
-              >
-                <View style={styles.routeIconWrap}>
-                  <Icon
-                    name="headphones"
-                    size={18}
-                    color={audioOutput === 'bluetooth_hq' ? '#38bdf8' : '#8f86b3'}
-                  />
-                </View>
-                <View style={styles.routeMeta}>
-                  <Text
-                    style={[
-                      styles.routeLabel,
-                      audioOutput === 'bluetooth_hq' && styles.routeLabelActive,
-                    ]}
-                  >
-                    Bluetooth (HQ Audio)
-                  </Text>
-                  <Text style={styles.routeSub}>HD stereo playback (uses phone mic)</Text>
-                </View>
-                {audioOutput === 'bluetooth_hq' ? (
-                  <Icon name="check" size={18} color="#38bdf8" />
-                ) : null}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.routeItem,
-                  audioOutput === 'bluetooth' && styles.routeItemActive,
+                  (audioOutput === 'bluetooth' || audioOutput === 'bluetooth_hq') && styles.routeItemActive,
                 ]}
                 onPress={() => {
                   setAudioOutputMode('bluetooth', dispatch);
@@ -303,24 +235,24 @@ const PartyRoom = () => {
               >
                 <View style={styles.routeIconWrap}>
                   <Icon
-                    name="headset"
+                    name="headphones"
                     size={18}
-                    color={audioOutput === 'bluetooth' ? '#818cf8' : '#8f86b3'}
+                    color={(audioOutput === 'bluetooth' || audioOutput === 'bluetooth_hq') ? '#38bdf8' : '#8f86b3'}
                   />
                 </View>
                 <View style={styles.routeMeta}>
                   <Text
                     style={[
                       styles.routeLabel,
-                      audioOutput === 'bluetooth' && styles.routeLabelActive,
+                      (audioOutput === 'bluetooth' || audioOutput === 'bluetooth_hq') && styles.routeLabelActive,
                     ]}
                   >
-                    Bluetooth (Hands-Free)
+                    Bluetooth (HQ Audio)
                   </Text>
-                  <Text style={styles.routeSub}>Wireless earbuds mic & audio</Text>
+                  <Text style={styles.routeSub}>HD stereo music & WebRTC voice (uses phone mic)</Text>
                 </View>
-                {audioOutput === 'bluetooth' ? (
-                  <Icon name="check" size={18} color="#818cf8" />
+                {(audioOutput === 'bluetooth' || audioOutput === 'bluetooth_hq') ? (
+                  <Icon name="check" size={18} color="#38bdf8" />
                 ) : null}
               </TouchableOpacity>
             </View>
@@ -382,12 +314,8 @@ const PartyRoom = () => {
           label={
             muteIncoming
               ? 'Sound Off'
-              : audioOutput === 'bluetooth_hq'
-              ? 'BT (HQ)'
-              : audioOutput === 'bluetooth'
-              ? 'BT (Mic)'
-              : audioOutput === 'earpiece'
-              ? 'Earpiece'
+              : audioOutput === 'bluetooth' || audioOutput === 'bluetooth_hq'
+              ? 'Bluetooth'
               : 'Speaker'
           }
           onPress={() => {
@@ -397,18 +325,14 @@ const PartyRoom = () => {
           icon={
             muteIncoming
               ? 'volume-off'
-              : audioOutput === 'bluetooth_hq'
+              : audioOutput === 'bluetooth' || audioOutput === 'bluetooth_hq'
               ? 'headphones'
-              : audioOutput === 'bluetooth'
-              ? 'headset'
-              : audioOutput === 'earpiece'
-              ? 'phone-in-talk'
               : 'volume-high'
           }
           variant={
             muteIncoming
               ? 'danger'
-              : audioOutput === 'bluetooth_hq' || audioOutput === 'bluetooth'
+              : audioOutput === 'bluetooth' || audioOutput === 'bluetooth_hq'
               ? 'bluetooth'
               : 'audio'
           }

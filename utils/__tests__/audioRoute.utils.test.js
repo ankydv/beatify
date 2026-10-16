@@ -5,7 +5,6 @@ NativeModules.AudioRouteModule = {
   resetRoute: jest.fn().mockResolvedValue('speaker'),
   getAvailableRoutes: jest.fn().mockResolvedValue({
     speaker: true,
-    earpiece: true,
     bluetooth: true,
     headphones: false,
     currentRoute: 'speaker',
@@ -46,22 +45,6 @@ describe('audioRoute.utils', () => {
     expect(getAudioOutputMode()).toBe('speaker');
   });
 
-  test('setAudioOutputMode changes to earpiece mode', async () => {
-    const dispatch = jest.fn();
-    await setAudioOutputMode('earpiece', dispatch);
-    expect(NativeModules.AudioRouteModule.setRoute).toHaveBeenCalledWith('earpiece');
-    expect(dispatch).toHaveBeenCalled();
-    expect(getAudioOutputMode()).toBe('earpiece');
-  });
-
-  test('setAudioOutputMode changes to bluetooth_hq mode', async () => {
-    const dispatch = jest.fn();
-    await setAudioOutputMode('bluetooth_hq', dispatch);
-    expect(NativeModules.AudioRouteModule.setRoute).toHaveBeenCalledWith('bluetooth_hq');
-    expect(dispatch).toHaveBeenCalled();
-    expect(getAudioOutputMode()).toBe('bluetooth_hq');
-  });
-
   test('setAudioOutputMode changes to bluetooth mode', async () => {
     const dispatch = jest.fn();
     await setAudioOutputMode('bluetooth', dispatch);
@@ -70,24 +53,16 @@ describe('audioRoute.utils', () => {
     expect(getAudioOutputMode()).toBe('bluetooth');
   });
 
-  test('toggleAudioOutput cycles routes', async () => {
+  test('toggleAudioOutput cycles routes between speaker and bluetooth', async () => {
     const dispatch = jest.fn();
-    // bluetooth -> speaker
-    await setAudioOutputMode('bluetooth', dispatch);
+    // Start at speaker -> next is bluetooth
+    await setAudioOutputMode('speaker', dispatch);
     const next1 = await toggleAudioOutput(dispatch);
-    expect(next1).toBe('speaker');
+    expect(next1).toBe('bluetooth');
 
-    // speaker -> earpiece
+    // bluetooth -> speaker
     const next2 = await toggleAudioOutput(dispatch);
-    expect(next2).toBe('earpiece');
-
-    // earpiece -> bluetooth_hq
-    const next3 = await toggleAudioOutput(dispatch);
-    expect(next3).toBe('bluetooth_hq');
-
-    // bluetooth_hq -> bluetooth
-    const next4 = await toggleAudioOutput(dispatch);
-    expect(next4).toBe('bluetooth');
+    expect(next2).toBe('speaker');
   });
 
   test('resetAudioOutput calls native resetRoute and restores speaker', async () => {
@@ -113,7 +88,7 @@ describe('audioRoute.utils', () => {
   test('getAvailableAudioRoutes returns available routes object', async () => {
     const routes = await getAvailableAudioRoutes();
     expect(routes).toHaveProperty('speaker');
-    expect(routes).toHaveProperty('earpiece');
     expect(routes).toHaveProperty('bluetooth');
+    expect(routes).not.toHaveProperty('earpiece');
   });
 });

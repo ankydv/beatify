@@ -9,11 +9,14 @@ import {
   stopLocalStream,
   closeAllPeerConnections,
 } from "@/utils/webrtc.utils";
-import { applyAudioOutput, resetAudioOutput } from "@/utils/audioRoute.utils";
+import {
+  applyAudioOutput,
+  resetAudioOutput,
+  acquirePartyLocks,
+} from "@/utils/audioRoute.utils";
 import {
   RTCSessionDescription,
   RTCIceCandidate,
-  RTCView,
   mediaDevices,
 } from "react-native-webrtc";
 
@@ -237,6 +240,7 @@ const WebRTCClient = ({
 
     const startVoice = async () => {
       try {
+        acquirePartyLocks().catch(() => {});
         await applyAudioOutput(audioOutput).catch(() => {});
         const stream = await ensureMic();
         if (!mountedRef.current) {
@@ -401,15 +405,6 @@ const WebRTCClient = ({
 
   return (
     <View style={styles.wrap} pointerEvents="none">
-      {entries.map(([peerId, stream]) => (
-        <RTCView
-          key={peerId}
-          streamURL={stream.toURL()}
-          style={styles.hidden}
-          objectFit="cover"
-          zOrder={0}
-        />
-      ))}
       {voiceError ? (
         <Text style={styles.err}>{voiceError}</Text>
       ) : (

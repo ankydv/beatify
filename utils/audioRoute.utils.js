@@ -3,12 +3,10 @@ import { AppState, Platform, NativeModules, NativeEventEmitter } from 'react-nat
 /**
  * Global audio routing & playback sink state for Beatify.
  * Supported modes:
- *  - 'speaker': phone's loudspeaker (both WebRTC voice & TrackPlayer music)
- *  - 'earpiece': phone's top in-call receiver
- *  - 'bluetooth_hq': high-fidelity Bluetooth A2DP stereo audio (uses phone mic)
- *  - 'bluetooth': wireless headset / earbuds hands-free (earbuds mic & audio)
+ *  - 'speaker': phone's loudspeaker (both WebRTC voice & TrackPlayer music in stereo)
+ *  - 'bluetooth': high-fidelity Bluetooth A2DP stereo playback (uses phone mic)
  */
-let currentAudioOutput = 'speaker'; // 'speaker' | 'earpiece' | 'bluetooth_hq' | 'bluetooth'
+let currentAudioOutput = 'speaker'; // 'speaker' | 'bluetooth'
 let incomingMuted = false;
 
 const routeEmitter =
@@ -17,16 +15,13 @@ const routeEmitter =
     : null;
 
 /**
- * Apply the requested audio route to both native AudioManager (communication/voice)
- * and ExoPlayer (TrackPlayer music stream).
+ * Apply the requested audio route to both native AudioManager and ExoPlayer (TrackPlayer).
  *
- * @param {'speaker'|'earpiece'|'bluetooth_hq'|'bluetooth'} targetMode
+ * @param {'speaker'|'bluetooth'} targetMode
  */
 export async function applyAudioOutput(targetMode) {
   const mode = String(targetMode || currentAudioOutput).toLowerCase();
-  if (mode === 'speaker' || mode === 'earpiece' || mode === 'bluetooth' || mode === 'bluetooth_hq') {
-    currentAudioOutput = mode;
-  }
+  currentAudioOutput = mode === 'bluetooth' || mode === 'bluetooth_hq' ? 'bluetooth' : 'speaker';
 
   // 1. Native AudioRouteModule controls both Android AudioManager (WebRTC communication)
   // and ExoPlayer AudioTrack (TrackPlayer media stream).
@@ -89,7 +84,7 @@ export async function resetAudioOutput() {
 }
 
 /**
- * Query available audio hardware routes (speaker, earpiece, bluetooth, headphones).
+ * Query available audio hardware routes (speaker, bluetooth, headphones).
  * Returns true for bluetooth when a wireless headset or speaker is physically connected.
  */
 export async function getAvailableAudioRoutes() {
@@ -105,7 +100,6 @@ export async function getAvailableAudioRoutes() {
   // Fallback defaults if native module is not ready
   return {
     speaker: true,
-    earpiece: true,
     bluetooth: false,
     headphones: false,
     currentRoute: currentAudioOutput,
@@ -117,8 +111,7 @@ export async function getAvailableAudioRoutes() {
  */
 export async function setAudioOutputMode(mode, dispatch) {
   const raw = String(mode || '').toLowerCase();
-  const normalized =
-    raw === 'earpiece' || raw === 'bluetooth' || raw === 'bluetooth_hq' ? raw : 'speaker';
+  const normalized = raw === 'bluetooth' || raw === 'bluetooth_hq' ? 'bluetooth' : 'speaker';
   currentAudioOutput = normalized;
 
   if (dispatch) {
@@ -137,15 +130,12 @@ export async function setAudioOutputMode(mode, dispatch) {
 }
 
 /**
- * Cycle through available audio output modes.
+ * Cycle through available audio output modes (speaker <-> bluetooth).
  */
 export async function toggleAudioOutput(dispatch) {
+  const routes = await getAvailableAudioRoutes();
   let nextMode = 'speaker';
-  if (currentAudioOutput === 'speaker') {
-    nextMode = 'earpiece';
-  } else if (currentAudioOutput === 'earpiece') {
-    nextMode = 'bluetooth_hq';
-  } else if (currentAudioOutput === 'bluetooth_hq') {
+  if (currentAudioOutput === 'speaker' && routes?.bluetooth) {
     nextMode = 'bluetooth';
   } else {
     nextMode = 'speaker';

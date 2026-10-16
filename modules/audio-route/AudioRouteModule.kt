@@ -178,19 +178,12 @@ class AudioRouteModule(private val reactContext: ReactApplicationContext) :
                 val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
                 val targetDevice: AudioDeviceInfo? = when (route?.lowercase()) {
                     "speaker" -> outputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
-                    "earpiece" -> outputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
-                    "bluetooth_hq" -> outputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP }
+                    "bluetooth", "bluetooth_hq" -> outputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP }
                         ?: outputs.firstOrNull {
                             it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
                             it.type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
                             it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
                         }
-                    "bluetooth" -> outputs.firstOrNull {
-                        it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-                        it.type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
-                        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
-                    }
                     else -> null
                 }
                 val method = exo.javaClass.getMethod("setPreferredAudioDevice", AudioDeviceInfo::class.java)
@@ -204,6 +197,7 @@ class AudioRouteModule(private val reactContext: ReactApplicationContext) :
 
     override fun initialize() {
         super.initialize()
+        AudioRoutePackage.initWebRtcMediaPlayout(reactContext)
         bindMusicServiceSafely()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
@@ -247,11 +241,11 @@ class AudioRouteModule(private val reactContext: ReactApplicationContext) :
         }
 
         result.putBoolean("speaker", true)
-        result.putBoolean("earpiece", true)
+        result.putBoolean("earpiece", false)
         result.putBoolean("bluetooth", hasBluetooth)
         result.putBoolean("bluetooth_hq", hasBluetooth)
         result.putBoolean("headphones", hasHeadphones)
-        result.putString("currentRoute", activeRoute)
+        result.putString("currentRoute", if (activeRoute == "earpiece") "speaker" else activeRoute)
         return result
     }
 
@@ -265,8 +259,9 @@ class AudioRouteModule(private val reactContext: ReactApplicationContext) :
     }
 
     /**
-     * Set active route to 'speaker', 'earpiece', 'bluetooth_hq', or 'bluetooth'.
-     * Directs both communication audio (VoIP / WebRTC) and media (ExoPlayer).
+     * Set active route to 'speaker' or 'bluetooth'.
+     * Directs both media playback and WebRTC voice (configured with USAGE_MEDIA in MODE_NORMAL)
+     * so Android mixes them together in high-fidelity stereo.
      */
     @ReactMethod
     fun setRoute(route: String, promise: Promise) {
@@ -275,140 +270,35 @@ class AudioRouteModule(private val reactContext: ReactApplicationContext) :
                 val target = route.lowercase()
                 Log.d(TAG, "setRoute called with target: $target")
 
+                // Keep app in MODE_NORMAL so Android's audio mixer treats WebRTC as a standard Media stream
+                audioManager.mode = AudioManager.MODE_NORMAL
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val commDevices = audioManager.availableCommunicationDevices
-                    when (target) {
-                        "speaker" -> {
-                            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                            val speakerDevice = commDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
-                            if (speakerDevice != null) {
-                                val ok = audioManager.setCommunicationDevice(speakerDevice)
-                                Log.d(TAG, "setCommunicationDevice(speaker): $ok")
-                            }
-                            audioManager.isSpeakerphoneOn = true
-                            try {
-                                if (audioManager.isBluetoothScoOn) {
-                                    audioManager.stopBluetoothSco()
-                                    audioManager.isBluetoothScoOn = false
-                                }
-                            } catch (_: Exception) {}
-                            activeRoute = "speaker"
-                        }
-                        "earpiece" -> {
-                            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                            val earpieceDevice = commDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
-                            if (earpieceDevice != null) {
-                                val ok = audioManager.setCommunicationDevice(earpieceDevice)
-                                Log.d(TAG, "setCommunicationDevice(earpiece): $ok")
-                            }
-                            audioManager.isSpeakerphoneOn = false
-                            try {
-                                if (audioManager.isBluetoothScoOn) {
-                                    audioManager.stopBluetoothSco()
-                                    audioManager.isBluetoothScoOn = false
-                                }
-                            } catch (_: Exception) {}
-                            activeRoute = "earpiece"
-                        }
-                        "bluetooth_hq" -> {
-                            // High Quality Bluetooth Mode:
-                            // Output (WebRTC voice + ExoPlayer music) routes via Bluetooth A2DP in stereo.
-                            // Microphone uses the phone's built-in mic.
-                            // Clear communication device so Android doesn't force mono 8kHz/16kHz SCO profile.
-                            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                            audioManager.clearCommunicationDevice()
-                            audioManager.isSpeakerphoneOn = false
-                            try {
-                                if (audioManager.isBluetoothScoOn) {
-                                    audioManager.stopBluetoothSco()
-                                    audioManager.isBluetoothScoOn = false
-                                }
-                            } catch (_: Exception) {}
-                            activeRoute = "bluetooth_hq"
-                            Log.d(TAG, "setRoute(bluetooth_hq): cleared communication device, SCO off")
-                        }
-                        "bluetooth" -> {
-                            // Standard Hands-Free Bluetooth Mode (SCO):
-                            // Mic & output both on Bluetooth headset (call quality).
-                            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                            val btDevice = commDevices.firstOrNull {
-                                it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-                                it.type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
-                                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
-                            }
-                            if (btDevice != null) {
-                                val ok = audioManager.setCommunicationDevice(btDevice)
-                                Log.d(TAG, "setCommunicationDevice(bluetooth): $ok")
-                            } else {
-                                audioManager.clearCommunicationDevice()
-                                Log.d(TAG, "clearCommunicationDevice() called for bluetooth fallback")
-                            }
-                            audioManager.isSpeakerphoneOn = false
-                            try {
-                                if (!audioManager.isBluetoothScoOn) {
-                                    audioManager.startBluetoothSco()
-                                    audioManager.isBluetoothScoOn = true
-                                }
-                            } catch (_: Exception) {}
-                            activeRoute = "bluetooth"
-                        }
-                        else -> {
-                            audioManager.clearCommunicationDevice()
-                            audioManager.isSpeakerphoneOn = false
-                            activeRoute = target
-                        }
+                    audioManager.clearCommunicationDevice()
+                }
+                try {
+                    if (audioManager.isBluetoothScoOn) {
+                        audioManager.stopBluetoothSco()
+                        audioManager.isBluetoothScoOn = false
                     }
-                } else {
-                    // Pre-Android 12 fallback
-                    when (target) {
-                        "speaker" -> {
-                            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                            try {
-                                if (audioManager.isBluetoothScoOn) {
-                                    audioManager.stopBluetoothSco()
-                                    audioManager.isBluetoothScoOn = false
-                                }
-                            } catch (_: Exception) {}
-                            audioManager.isSpeakerphoneOn = true
-                            activeRoute = "speaker"
-                        }
-                        "earpiece" -> {
-                            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                            try {
-                                if (audioManager.isBluetoothScoOn) {
-                                    audioManager.stopBluetoothSco()
-                                    audioManager.isBluetoothScoOn = false
-                                }
-                            } catch (_: Exception) {}
-                            audioManager.isSpeakerphoneOn = false
-                            activeRoute = "earpiece"
-                        }
-                        "bluetooth_hq" -> {
-                            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                            audioManager.isSpeakerphoneOn = false
-                            try {
-                                if (audioManager.isBluetoothScoOn) {
-                                    audioManager.stopBluetoothSco()
-                                    audioManager.isBluetoothScoOn = false
-                                }
-                            } catch (_: Exception) {}
-                            activeRoute = "bluetooth_hq"
-                        }
-                        "bluetooth" -> {
-                            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                            audioManager.isSpeakerphoneOn = false
-                            try {
-                                audioManager.startBluetoothSco()
-                                audioManager.isBluetoothScoOn = true
-                            } catch (_: Exception) {}
-                            activeRoute = "bluetooth"
-                        }
+                } catch (_: Exception) {}
+
+                when (target) {
+                    "bluetooth", "bluetooth_hq" -> {
+                        audioManager.isSpeakerphoneOn = false
+                        activeRoute = "bluetooth"
+                    }
+                    "speaker" -> {
+                        audioManager.isSpeakerphoneOn = true
+                        activeRoute = "speaker"
+                    }
+                    else -> {
+                        audioManager.isSpeakerphoneOn = true
+                        activeRoute = "speaker"
                     }
                 }
 
                 // Direct media stream (TrackPlayer) to match
-                applyExoPlayerRoute(target)
+                applyExoPlayerRoute(activeRoute)
 
                 promise.resolve(activeRoute)
             } catch (e: Exception) {

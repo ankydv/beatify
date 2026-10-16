@@ -61,12 +61,18 @@ function withAudioRoute(config) {
           `val packages = PackageList(this).packages\n            packages.add(AudioRoutePackage())`,
         );
       }
+      if (!contents.includes('initWebRtcMediaPlayout')) {
+        contents = contents.replace(
+          /super\.onCreate\(\)/,
+          `super.onCreate()\n    AudioRoutePackage.initWebRtcMediaPlayout(this)`,
+        );
+      }
       config.modResults.contents = contents;
     }
     return config;
   });
 
-  // 3. Ensure Bluetooth and audio permissions are in AndroidManifest
+  // 3. Ensure Bluetooth, foreground service and audio permissions are in AndroidManifest
   config = withAndroidManifest(config, (config) => {
     const androidManifest = config.modResults.manifest;
     const permissions = [
@@ -76,6 +82,9 @@ function withAudioRoute(config) {
       'android.permission.BLUETOOTH_CONNECT',
       'android.permission.WAKE_LOCK',
       'android.permission.ACCESS_WIFI_STATE',
+      'android.permission.FOREGROUND_SERVICE',
+      'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
+      'android.permission.FOREGROUND_SERVICE_MICROPHONE',
     ];
     if (!androidManifest['uses-permission']) {
       androidManifest['uses-permission'] = [];

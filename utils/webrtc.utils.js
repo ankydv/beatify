@@ -68,7 +68,7 @@ export const setLocalMicEnabled = (localStream, enabled) => {
 export const setSpeakerphoneOn = (on = true) => {
   try {
     const { applyAudioOutput } = require("@/utils/audioRoute.utils");
-    applyAudioOutput(on ? 'speaker' : 'earpiece').catch(() => {});
+    applyAudioOutput(on ? 'speaker' : 'bluetooth').catch(() => {});
   } catch (e) {
     try {
       const { NativeModules } = require("react-native");

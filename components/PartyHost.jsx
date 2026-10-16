@@ -93,8 +93,8 @@ export default function PartyHost() {
       try {
         const routes = await getAvailableAudioRoutes();
         if (!isMounted) return;
-        // Default to HQ Bluetooth when wireless headphones/earbuds are connected
-        const initialRoute = routes?.bluetooth ? 'bluetooth_hq' : 'speaker';
+        // Default to Bluetooth when wireless headphones/earbuds/speaker connected
+        const initialRoute = routes?.bluetooth ? 'bluetooth' : 'speaker';
         dispatch(setAudioOutput(initialRoute));
         await applyAudioOutput(initialRoute);
       } catch (e) {}
@@ -103,15 +103,10 @@ export default function PartyHost() {
     // Listen for bluetooth connection / disconnection events
     const unsubscribe = subscribeAudioRoutesChanged((routes) => {
       if (!isMounted) return;
-      if (
-        routes?.bluetooth &&
-        audioOutput !== 'earpiece' &&
-        audioOutput !== 'bluetooth' &&
-        audioOutput !== 'bluetooth_hq'
-      ) {
-        dispatch(setAudioOutput('bluetooth_hq'));
-        applyAudioOutput('bluetooth_hq').catch(() => {});
-      } else if (!routes?.bluetooth && (audioOutput === 'bluetooth' || audioOutput === 'bluetooth_hq')) {
+      if (routes?.bluetooth && audioOutput !== 'bluetooth') {
+        dispatch(setAudioOutput('bluetooth'));
+        applyAudioOutput('bluetooth').catch(() => {});
+      } else if (!routes?.bluetooth && audioOutput === 'bluetooth') {
         dispatch(setAudioOutput('speaker'));
         applyAudioOutput('speaker').catch(() => {});
       }
