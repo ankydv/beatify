@@ -145,3 +145,42 @@ flowchart TD
 5. **Gamification & Social Presence**:
    - Members send ephemeral reactions (`🔥`, `🎉`, `❤️`, `⚡`) that burst onto other members' screens.
    - Users earn Party XP and listening streak badges for participating and DJing.
+
+---
+
+## 4. Algorithmic Vibe Matching & Zero-Cost Architecture
+
+Beatify implements a production-grade algorithmic music matchmaking and room discovery engine built without expensive vector databases or third-party ML APIs (zero operating cost).
+
+### A. Mathematical Formulation
+
+1. **Exponential Recency Decay**:
+   User music taste evolves over time. When extracting user vectors from MongoDB `History`, each play $p_i$ is weighted with a half-life of 14 days:
+   $$w_i = \exp\left(-\frac{\ln(2)}{14} \cdot \Delta t_i\right)$$
+   where $\Delta t_i$ is elapsed days since the play.
+
+2. **Taste Vector Construction**:
+   - **Artist Vector ($\vec{A}$)**: Formed by aggregating time-decayed weights of song authors.
+   - **Genre/Keyword Vector ($\vec{G}$)**: Normalized and canonicalized from raw song `keywords` into standard vibes (Lo-Fi, Synthwave, Bollywood, EDM, Focus, Energize, Romance, Hip-Hop, Pop, Rock, Indie).
+   - **Time Slot Vector ($\vec{T}$)**: Partitions plays into Night (22-04), Morning (05-11), Afternoon (12-16), and Evening (17-21).
+
+3. **Pairwise Vibe Twin Similarity**:
+   For any two users $u_1$ and $u_2$, their compatibility score is computed using multidimensional Cosine Similarity:
+   $$\text{sim}_{\text{artist}} = \frac{\vec{A}_1 \cdot \vec{A}_2}{\|\vec{A}_1\| \|\vec{A}_2\|}, \quad \text{sim}_{\text{genre}} = \frac{\vec{G}_1 \cdot \vec{G}_2}{\|\vec{G}_1\| \|\vec{G}_2\|}, \quad \text{sim}_{\text{time}} = \frac{\vec{T}_1 \cdot \vec{T}_2}{\|\vec{T}_1\| \|\vec{T}_2\|}$$
+   Composite match percentage:
+   $$\text{Match}\% = \text{clamp}\left(\left(0.55 \cdot \text{sim}_{\text{artist}} + 0.35 \cdot \text{sim}_{\text{genre}} + 0.10 \cdot \text{sim}_{\text{time}} + \text{sharedBonus}\right) \times 100, 58, 98\right)$$
+
+4. **Algorithmic Room Scoring**:
+   Rooms are ranked dynamically for the authenticated listener using taste affinity:
+   $$\text{Score}(u, R) = w_{\text{vibe}} \cdot \mathbb{I}(\text{vibe} \in \vec{G}_u) + w_{\text{tags}} \cdot |\text{tags} \cap \vec{G}_u| + w_{\text{artist}} \cdot \mathbb{I}(\text{nowPlayingArtist} \in \vec{A}_u) + \min(20, \text{listeners} \times 3)$$
+
+5. **Gamification & Level Curve**:
+   - $\text{XP} = (\text{plays} \times 10) + (\text{uniqueArtists} \times 25) + (\text{streak} \times 50) + (\text{roomsCreated} \times 40) + (\text{roomsJoined} \times 15) + (\text{reactions} \times 5)$
+   - $\text{Level} = \max\left(1, \lfloor \sqrt{\text{XP} / 80} \rfloor + 1\right)$
+   - $\text{nextLevelXP} = \text{Level}^2 \times 80$
+   - Badges (`first_drop`, `crate_digger`, `sound_voyager`, `streak_master`, `night_owl`, `party_starter`, `aux_champ`) unlocked strictly by real historical milestones.
+
+### B. Storage & Performance Optimization
+- **`UserProfile` MongoDB Model (`models/profile.model.js`)**: Caches computed vectors and gamification metrics with 10-minute invalidation TTL. Avoids expensive N+1 recomputation on every request.
+- **Dynamic Anchor Station Auto-Hydration**: When users join an algorithmic community station, it automatically instantiates as an active collaborative session in `store.js` with verified playable YouTube videoIds.
+

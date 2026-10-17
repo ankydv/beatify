@@ -17,6 +17,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 
 import { usePartyRoomDiscovery } from '@/hooks/partyRoomDiscovery.hooks';
+import { useFriends } from '@/hooks/friends.hooks';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -49,6 +50,23 @@ const PartyScreen = () => {
     currentUser,
   } = usePartyRoomDiscovery();
 
+  const {
+    friends,
+    pendingRequests,
+    sendRequest,
+    respondRequest,
+    activeChatFriend,
+    chatMessages,
+    openChat,
+    closeChat,
+    sendChatMessage,
+    sendingMsg,
+  } = useFriends();
+
+  // Friend chat state
+  const [chatInputText, setChatInputText] = useState('');
+  const [requestedFriendIds, setRequestedFriendIds] = useState([]);
+
   // Code join state
   const [inputRoomId, setInputRoomId] = useState('');
   const [joinError, setJoinError] = useState('');
@@ -60,6 +78,25 @@ const PartyScreen = () => {
   const [newRoomTags, setNewRoomTags] = useState('chill, lofi, beats');
   const [newCustomRoomId, setNewCustomRoomId] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // Send friend request handler
+  const handleSendFriendRequest = async (peerId) => {
+    try {
+      setRequestedFriendIds((prev) => [...prev, peerId]);
+      await sendRequest(peerId);
+      Alert.alert('Friend Request Sent! 🎉', 'You will earn mutual synergy points when they accept.');
+    } catch (e) {
+      Alert.alert('Notice', e?.message || 'Could not send friend request');
+    }
+  };
+
+  // Send direct message handler
+  const handleSendChatMessage = async () => {
+    if (!chatInputText.trim()) return;
+    const msg = chatInputText.trim();
+    setChatInputText('');
+    await sendChatMessage(msg);
+  };
 
   // Quick join room handler
   const joinRoom = (roomId) => {
@@ -111,13 +148,60 @@ const PartyScreen = () => {
     }
   };
 
-  // Quick match to the most active room
-  const handleQuickMatch = () => {
+  // Handle Accept/Decline of friend request
+  const handleRespondRequest = async (friendshipId, action) => {
+    try {
+      await respondRequest(friendshipId, action);
+      if (action === 'accept') {
+        Alert.alert('Friend Connected! 🎉', 'You can now chat and earn mutual synergy points.');
+      }
+    } catch (e) {
+      Alert.alert('Notice', e?.message || 'Failed to update request');
+    }
+  };
+
+  // Quick match to the most active room or create a fresh instant jam room
+  const handleQuickMatch = async () => {
     if (activeRooms && activeRooms.length > 0) {
       joinRoom(activeRooms[0].roomId);
     } else {
-      joinRoom('1001');
+      const generatedId = String(Math.floor(1000 + Math.random() * 9000));
+      try {
+        await createRoom({
+          title: `${currentUser?.firstName || 'Host'}'s Instant Jam ⚡`,
+          vibe: selectedVibe !== 'All' ? selectedVibe : 'Chill',
+          roomId: generatedId,
+        });
+      } catch (e) {}
+      joinRoom(generatedId);
     }
+  };
+
+  // Handle Jam Together with another user (never hardcodes 1001)
+  const handleJamTogether = async (peer) => {
+    if (peer.roomId) {
+      joinRoom(peer.roomId);
+      return;
+    }
+
+    const uniqueRoomId = String(Math.floor(1000 + Math.random() * 9000));
+    const peerName = (peer.name || 'Friend').split(' ')[0];
+    const myName = currentUser?.firstName || 'Host';
+
+    try {
+      await createRoom({
+        title: `Jam: ${myName} & ${peerName} 🎧`,
+        vibe: peer.favoriteGenre || (selectedVibe !== 'All' ? selectedVibe : 'Chill'),
+        tags: [peer.favoriteGenre || 'chill', 'jam'].filter(Boolean),
+        roomId: uniqueRoomId,
+      });
+
+      if (peer.friendStatus === 'accepted') {
+        sendChatMessage(`Started a private Jam room for us (#${uniqueRoomId})! Jump in 🚀`).catch(() => {});
+      }
+    } catch (e) {}
+
+    joinRoom(uniqueRoomId);
   };
 
   const gamification = vibeProfile?.gamification || {
@@ -171,6 +255,56 @@ const PartyScreen = () => {
           />
         }
       >
+        {/* ---------------- Incoming Friend Requests Alert Banner ---------------- */}
+        {pendingRequests && pendingRequests.length > 0 && (
+          <View style={[styles.friendRequestsBanner, { backgroundColor: theme.colors.elevation.level2 }]}>
+            <View style={styles.friendRequestsHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Icon name="bell-ring" size={18} color="#FFD700" style={{ marginRight: 6 }} />
+                <Text variant="titleSmall" style={styles.friendRequestsTitle}>
+                  Friend Requests ({pendingRequests.length})
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/chat')}>
+                <Text style={styles.viewChatTabLink}>Open Chats 💬</Text>
+              </TouchableOpacity>
+            </View>
+
+            {pendingRequests.map((req) => (
+              <View key={req._id} style={styles.pendingRequestRow}>
+                {req.requesterPicture ? (
+                  <Image source={{ uri: req.requesterPicture }} style={styles.pendingReqAvatar} />
+                ) : (
+                  <View style={[styles.pendingReqAvatar, styles.avatarFallback]}>
+                    <Icon name="account" size={16} color="#FFFFFF" />
+                  </View>
+                )}
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.pendingReqName} numberOfLines={1}>
+                    {req.requesterName}
+                  </Text>
+                  <Text style={styles.pendingReqSub}>Wants to vibe with you</Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    style={[styles.miniReqBtn, styles.miniAcceptBtn]}
+                    onPress={() => handleRespondRequest(req._id, 'accept')}
+                  >
+                    <Icon name="check" size={14} color="#FFFFFF" />
+                    <Text style={styles.miniReqBtnText}>Accept</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.miniReqBtn, styles.miniDeclineBtn]}
+                    onPress={() => handleRespondRequest(req._id, 'decline')}
+                  >
+                    <Icon name="close" size={14} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* ---------------- Gamified Vibe Card ---------------- */}
         <View style={styles.vibeCardWrapper}>
           <LinearGradient
@@ -209,14 +343,25 @@ const PartyScreen = () => {
                 <View style={styles.xpBarTrack}>
                   <View
                     style={[
-                      styles.xpBarFill,
-                      { width: `${Math.min(100, (gamification.xp / gamification.nextLevelXp) * 100)}%` },
+                    styles.xpBarFill,
+                    { width: `${Math.min(100, (gamification.xp / gamification.nextLevelXp) * 100)}%` },
                     ]}
                   />
                 </View>
                 <Text style={styles.xpText}>
                   {gamification.xp} / {gamification.nextLevelXp} XP to {gamification.levelTitle}
                 </Text>
+
+                {/* Algorithmic Taste DNA Chips */}
+                {vibeProfile?.topGenres && vibeProfile.topGenres.length > 0 && (
+                  <View style={styles.tastePillsRow}>
+                    {vibeProfile.topGenres.slice(0, 3).map((g, idx) => (
+                      <View key={idx} style={styles.tastePill}>
+                        <Text style={styles.tastePillText}>#{typeof g === 'string' ? g : g.name}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             </View>
 
@@ -347,6 +492,49 @@ const PartyScreen = () => {
           })}
         </ScrollView>
 
+        {/* ---------------- Friends Live in Party / Follow Bar ---------------- */}
+        {friends && friends.some((f) => f.isLiveInRoom && f.roomInfo) && (
+          <View style={styles.friendLiveBar}>
+            <View style={styles.friendLiveHeader}>
+              <View style={styles.liveIndicatorDot} />
+              <Text variant="titleSmall" style={styles.friendLiveTitle}>
+                Friends Vibing Now 🎧
+              </Text>
+            </View>
+            {friends
+              .filter((f) => f.isLiveInRoom && f.roomInfo)
+              .map((f) => (
+                <View
+                  key={f.friendId}
+                  style={[styles.friendLiveRow, { backgroundColor: theme.colors.elevation.level2 }]}
+                >
+                  {f.picture ? (
+                    <Image source={{ uri: f.picture }} style={styles.friendLiveAvatar} />
+                  ) : (
+                    <View style={[styles.friendLiveAvatar, styles.avatarFallback]}>
+                      <Icon name="account" size={16} color="#FFFFFF" />
+                    </View>
+                  )}
+                  <View style={styles.friendLiveMeta}>
+                    <Text style={styles.friendLiveName} numberOfLines={1}>
+                      {f.name}
+                    </Text>
+                    <Text style={styles.friendLiveRoomText} numberOfLines={1}>
+                      Listening in {f.roomInfo?.title || `Room #${f.roomInfo?.roomId}`}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.followRoomBtn}
+                    onPress={() => joinRoom(f.roomInfo?.roomId)}
+                  >
+                    <Icon name="account-arrow-right" size={16} color="#FFFFFF" />
+                    <Text style={styles.followRoomBtnText}>Follow</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+          </View>
+        )}
+
         {/* ---------------- Live Active Rooms List ---------------- */}
         {loading ? (
           <View style={styles.loaderBox}>
@@ -409,7 +597,7 @@ const PartyScreen = () => {
                         {currentTrack?.title || 'Up Next in Queue...'}
                       </Text>
                       <Text style={styles.roomTrackArtist} numberOfLines={1}>
-                        {currentTrack?.artists?.map((a) => a.name).join(', ') || 'Collaborative DJ Queue'}
+                        {currentTrack?.artistS || 'Collaborative DJ Queue'}
                       </Text>
                     </View>
                     <TouchableOpacity
@@ -449,46 +637,104 @@ const PartyScreen = () => {
             <Text style={styles.roomCountText}>Vibe Match</Text>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.vibeMatchScroll}
-          >
-            {matchedUsers.map((m) => (
-              <View
-                key={m.id}
-                style={[styles.matchCard, { backgroundColor: theme.colors.elevation.level2 }]}
-              >
-                <View style={styles.matchAvatarBox}>
-                  <Image source={{ uri: m.picture }} style={styles.matchAvatar} />
-                  <View style={styles.matchPercentageBadge}>
-                    <Text style={styles.matchPercentageText}>{m.matchPercentage}%</Text>
+          {matchedUsers.length === 0 ? (
+            <View style={styles.emptyMatchesBox}>
+              <Icon name="music-clef-treble" size={32} color="#888888" />
+              <Text style={styles.emptyMatchesText}>
+                Listen to a few tracks in Beatify to calculate your musical DNA and connect with vibe twins!
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.vibeMatchScroll}
+            >
+              {matchedUsers.map((m) => {
+                const firstName = (m.name || 'Friend').split(' ')[0];
+                const isLive = Boolean(m.roomId);
+                return (
+                  <View
+                    key={m.id}
+                    style={[styles.matchCard, { backgroundColor: theme.colors.elevation.level2 }]}
+                  >
+                    <View style={styles.matchAvatarBox}>
+                      <Image source={{ uri: m.picture }} style={styles.matchAvatar} />
+                      <View style={styles.matchPercentageBadge}>
+                        <Text style={styles.matchPercentageText}>{m.matchPercentage}%</Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.matchName} numberOfLines={1}>
+                      {m.name}
+                    </Text>
+                    <Text style={styles.matchVibeTitle} numberOfLines={1}>
+                      {m.vibeTitle}
+                    </Text>
+
+                    {/* Mutual Synergy Points Pill */}
+                    <View style={styles.synergyPointsPill}>
+                      <Icon name="shimmer" size={11} color="#FFD700" />
+                      <Text style={styles.synergyPointsText}>{m.synergyPoints || 10} Synergy</Text>
+                    </View>
+
+                    {/* Status Pill */}
+                    {m.status ? (
+                      <View style={styles.matchStatusRow}>
+                        <View style={[styles.statusDot, isLive ? styles.statusDotActive : null]} />
+                        <Text style={styles.matchStatusText} numberOfLines={1}>
+                          {m.status}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    <View style={styles.sharedTasteBox}>
+                      <Text style={styles.sharedTasteLabel}>Shared Taste:</Text>
+                      <Text style={styles.sharedTasteArtists} numberOfLines={1}>
+                        {Array.isArray(m.sharedArtists) && m.sharedArtists.length > 0
+                          ? m.sharedArtists.join(', ')
+                          : m.favoriteGenre || 'Eclectic'}
+                      </Text>
+                    </View>
+
+                    {/* Action 1: Friend / Chat Button */}
+                    {m.friendStatus === 'accepted' ? (
+                      <TouchableOpacity
+                        style={[styles.matchActionBtn, styles.chatFriendBtn]}
+                        onPress={() => openChat(m)}
+                      >
+                        <Icon name="chat" size={12} color="#FFFFFF" style={{ marginRight: 4 }} />
+                        <Text style={styles.matchActionText}>Chat</Text>
+                      </TouchableOpacity>
+                    ) : m.friendStatus === 'pending' || requestedFriendIds.includes(m.id) ? (
+                      <View style={[styles.matchActionBtn, styles.requestedFriendBtn]}>
+                        <Icon name="clock-outline" size={12} color="#AAAAAA" style={{ marginRight: 4 }} />
+                        <Text style={[styles.matchActionText, { color: '#AAAAAA' }]}>Requested</Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.matchActionBtn, styles.addFriendBtn]}
+                        onPress={() => handleSendFriendRequest(m.id)}
+                      >
+                        <Icon name="account-plus" size={12} color="#FFFFFF" style={{ marginRight: 4 }} />
+                        <Text style={styles.matchActionText}>Add Friend</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Action 2: Follow Room / Jam Button */}
+                    <TouchableOpacity
+                      style={[styles.matchActionBtn, isLive ? styles.matchActionBtnLive : null, { marginTop: 6 }]}
+                      onPress={() => handleJamTogether(m)}
+                    >
+                      <Text style={styles.matchActionText}>
+                        {isLive ? `🚀 Follow #${m.roomId}` : `🎧 Jam Together`}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                </View>
-
-                <Text style={styles.matchName} numberOfLines={1}>
-                  {m.name}
-                </Text>
-                <Text style={styles.matchVibeTitle} numberOfLines={1}>
-                  {m.vibeTitle}
-                </Text>
-
-                <View style={styles.sharedTasteBox}>
-                  <Text style={styles.sharedTasteLabel}>Shared Taste:</Text>
-                  <Text style={styles.sharedTasteArtists} numberOfLines={1}>
-                    {m.sharedArtists?.join(', ') || m.favoriteGenre}
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.matchActionBtn}
-                  onPress={() => joinRoom(m.roomId || '1001')}
-                >
-                  <Text style={styles.matchActionText}>Jam With {m.name.split(' ')[0]}</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
+                );
+              })}
+            </ScrollView>
+          )}
         </View>
 
         <View style={{ height: 120 }} />
@@ -576,6 +822,93 @@ const PartyScreen = () => {
             >
               Start Collaborative Room
             </Button>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ---------------- Friend Direct Chat Modal ---------------- */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={Boolean(activeChatFriend)}
+        onRequestClose={closeChat}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.chatModalContent, { backgroundColor: theme.colors.elevation.level3 }]}>
+            <View style={styles.chatHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {activeChatFriend?.picture ? (
+                  <Image source={{ uri: activeChatFriend.picture }} style={styles.chatFriendAvatar} />
+                ) : (
+                  <View style={[styles.chatFriendAvatar, styles.avatarFallback]}>
+                    <Icon name="account" size={18} color="#FFFFFF" />
+                  </View>
+                )}
+                <View style={{ marginLeft: 10 }}>
+                  <Text variant="titleMedium" style={{ fontWeight: '700' }}>
+                    {activeChatFriend?.name}
+                  </Text>
+                  <View style={styles.synergyBadgePill}>
+                    <Icon name="shimmer" size={12} color="#FFD700" />
+                    <Text style={styles.synergyBadgePillText}>
+                      {activeChatFriend?.synergyPoints || 10} Mutual Synergy
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <TouchableOpacity onPress={closeChat}>
+                <Icon name="close" size={24} color={theme.colors.onSurface} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Chat Messages */}
+            <ScrollView style={styles.chatMessagesScroll} contentContainerStyle={{ gap: 8, paddingVertical: 10 }}>
+              {chatMessages.length === 0 ? (
+                <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                  <Icon name="chat-outline" size={32} color="#888888" />
+                  <Text style={{ color: '#888888', marginTop: 6, fontSize: 13 }}>
+                    Send a message to earn mutual synergy points!
+                  </Text>
+                </View>
+              ) : (
+                chatMessages.map((msg, idx) => {
+                  const isMe = msg.senderId === currentUser?.id;
+                  return (
+                    <View
+                      key={msg._id || idx}
+                      style={[
+                        styles.chatBubble,
+                        isMe ? [styles.chatBubbleMe, { backgroundColor: theme.colors.primary }] : styles.chatBubbleOther,
+                      ]}
+                    >
+                      <Text style={[styles.chatBubbleText, isMe && { color: '#FFFFFF' }]}>
+                        {msg.message}
+                      </Text>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+
+            {/* Message Input */}
+            <View style={styles.chatInputRow}>
+              <TextInput
+                placeholder="Message friend..."
+                value={chatInputText}
+                onChangeText={setChatInputText}
+                mode="outlined"
+                dense
+                style={{ flex: 1, marginRight: 8 }}
+              />
+              <Button
+                mode="contained"
+                onPress={handleSendChatMessage}
+                loading={sendingMsg}
+                disabled={sendingMsg || !chatInputText.trim()}
+              >
+                Send
+              </Button>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1025,6 +1358,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 2,
   },
+  matchStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#888888',
+    marginRight: 4,
+  },
+  statusDotActive: {
+    backgroundColor: '#34C759',
+  },
+  matchStatusText: {
+    fontSize: 10,
+    color: '#AAAAAA',
+    fontWeight: '600',
+  },
   sharedTasteBox: {
     backgroundColor: 'rgba(0, 0, 0, 0.1)',
     width: '100%',
@@ -1051,9 +1408,43 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
   },
+  matchActionBtnLive: {
+    backgroundColor: '#FF6584',
+  },
   matchActionText: {
     fontSize: 11,
     fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  tastePillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  tastePill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  tastePillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  emptyMatchesBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 32,
+    gap: 8,
+  },
+  emptyMatchesText: {
+    fontSize: 12,
+    color: '#888888',
+    textAlign: 'center',
+    lineHeight: 18,
   },
   modalOverlay: {
     flex: 1,
@@ -1108,6 +1499,219 @@ const styles = StyleSheet.create({
   createSubmitButton: {
     marginTop: 8,
     borderRadius: 10,
+  },
+  // Friends Live Follow Bar
+  friendLiveBar: {
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  friendLiveHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  friendLiveTitle: {
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  friendLiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 12,
+    marginBottom: 6,
+  },
+  friendLiveAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  friendLiveMeta: {
+    flex: 1,
+    marginLeft: 10,
+    marginRight: 8,
+  },
+  friendLiveName: {
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  friendLiveRoomText: {
+    fontSize: 11,
+    color: '#888888',
+    marginTop: 1,
+  },
+  followRoomBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FF6584',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    gap: 4,
+  },
+  followRoomBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  // Synergy badge on matchmaker cards
+  synergyPointsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
+    gap: 4,
+  },
+  synergyPointsText: {
+    color: '#FFD700',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  // Matchmaker action button variations
+  addFriendBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4A90E2',
+  },
+  chatFriendBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#9013FE',
+  },
+  requestedFriendBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  // Direct Chat Modal Styles
+  chatModalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
+    maxHeight: '75%',
+  },
+  chatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  chatFriendAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  synergyBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginTop: 2,
+    gap: 4,
+  },
+  synergyBadgePillText: {
+    color: '#FFD700',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  chatMessagesScroll: {
+    maxHeight: 280,
+    minHeight: 120,
+  },
+  chatBubble: {
+    maxWidth: '80%',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+  },
+  chatBubbleMe: {
+    alignSelf: 'flex-end',
+    borderBottomRightRadius: 2,
+  },
+  chatBubbleOther: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderBottomLeftRadius: 2,
+  },
+  chatBubbleText: {
+    fontSize: 13,
+  },
+  chatInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  friendRequestsBanner: {
+    marginHorizontal: 14,
+    marginBottom: 12,
+    borderRadius: 14,
+    padding: 12,
+  },
+  friendRequestsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  friendRequestsTitle: {
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  viewChatTabLink: {
+    color: '#FF6584',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pendingRequestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  pendingReqAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+  },
+  pendingReqName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  pendingReqSub: {
+    fontSize: 11,
+    color: '#AAAAAA',
+    marginTop: 1,
+  },
+  miniReqBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 3,
+  },
+  miniAcceptBtn: {
+    backgroundColor: '#38ef7d',
+  },
+  miniDeclineBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  miniReqBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 12,
   },
 });
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import {
   getActiveRooms,
@@ -11,6 +11,8 @@ import { socket, ensureSocketConnected } from '@/configs/socket';
 export const usePartyRoomDiscovery = () => {
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
 
   const [activeRooms, setActiveRooms] = useState([]);
   const [discoverCategories, setDiscoverCategories] = useState([]);
@@ -24,9 +26,11 @@ export const usePartyRoomDiscovery = () => {
 
   const fetchRooms = useCallback(async () => {
     try {
+      const token = isSignedIn && getTokenRef.current ? await getTokenRef.current() : null;
       const res = await getActiveRooms({
         vibe: selectedVibe === 'All' ? '' : selectedVibe,
         search: searchQuery,
+        token,
       });
       if (res?.success && Array.isArray(res.rooms)) {
         setActiveRooms(res.rooms);
@@ -34,11 +38,12 @@ export const usePartyRoomDiscovery = () => {
     } catch (e) {
       console.warn('Failed to load active rooms:', e);
     }
-  }, [selectedVibe, searchQuery]);
+  }, [selectedVibe, searchQuery, isSignedIn]);
 
   const fetchDiscover = useCallback(async () => {
     try {
-      const res = await getDiscoverRooms();
+      const token = isSignedIn && getTokenRef.current ? await getTokenRef.current() : null;
+      const res = await getDiscoverRooms(token);
       if (res?.success) {
         setDiscoverCategories(res.categories || []);
         if (res.featured) setFeaturedRoom(res.featured);
@@ -46,14 +51,11 @@ export const usePartyRoomDiscovery = () => {
     } catch (e) {
       console.warn('Failed to load discover categories:', e);
     }
-  }, []);
+  }, [isSignedIn]);
 
   const fetchVibeData = useCallback(async () => {
     try {
-      let token = null;
-      if (isSignedIn) {
-        token = await getToken();
-      }
+      const token = isSignedIn && getTokenRef.current ? await getTokenRef.current() : null;
       const res = await getVibeMatches(token);
       if (res?.success) {
         setVibeProfile(res.userVibe || null);
@@ -62,66 +64,68 @@ export const usePartyRoomDiscovery = () => {
     } catch (e) {
       console.warn('Failed to load vibe matches:', e);
     }
-  }, [isSignedIn, getToken]);
+  }, [isSignedIn]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([fetchRooms(), fetchDiscover(), fetchVibeData()]);
+    await Promise.allSettled([fetchRooms(), fetchDiscover(), fetchVibeData()]);
     setLoading(false);
   }, [fetchRooms, fetchDiscover, fetchVibeData]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchRooms(), fetchDiscover(), fetchVibeData()]);
+    await Promise.allSettled([fetchRooms(), fetchDiscover(), fetchVibeData()]);
     setRefreshing(false);
   }, [fetchRooms, fetchDiscover, fetchVibeData]);
 
+  // Initial and filter changes
   useEffect(() => {
     loadAll();
   }, [selectedVibe, searchQuery]);
 
-  // Hook socket for live updates
+  // Hook socket for debounced room discovery updates (never listen to rapid dj:state on discovery)
   useEffect(() => {
     let alive = true;
+    let debounceTimer = null;
+
+    const handleRoomChange = () => {
+      if (!alive) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (alive) fetchRooms();
+      }, 2000);
+    };
+
     (async () => {
       try {
         await ensureSocketConnected();
         if (!alive) return;
 
-        socket.on('dj:state', () => {
-          fetchRooms();
-        });
-        socket.on('user-joined', () => {
-          fetchRooms();
-        });
-        socket.on('user-left', () => {
-          fetchRooms();
-        });
+        socket.on('party:rooms-updated', handleRoomChange);
+        socket.on('user-joined', handleRoomChange);
+        socket.on('user-left', handleRoomChange);
       } catch (e) {}
     })();
 
     return () => {
       alive = false;
-      socket.off('dj:state');
-      socket.off('user-joined');
-      socket.off('user-left');
+      if (debounceTimer) clearTimeout(debounceTimer);
+      socket.off('party:rooms-updated', handleRoomChange);
+      socket.off('user-joined', handleRoomChange);
+      socket.off('user-left', handleRoomChange);
     };
   }, [fetchRooms]);
 
   const createRoom = async ({ title, vibe, tags, isPrivate, roomId }) => {
-    let token = null;
-    if (isSignedIn) {
-      token = await getToken();
-    }
+    const token = isSignedIn && getTokenRef.current ? await getTokenRef.current() : null;
     const res = await apiCreateRoom({
       title,
-      vibe: vibe || selectedVibe !== 'All' ? selectedVibe : 'Chill',
+      vibe,
       tags,
       isPrivate,
       roomId,
       token,
     });
-    // Refresh rooms list
     fetchRooms();
     return res;
   };

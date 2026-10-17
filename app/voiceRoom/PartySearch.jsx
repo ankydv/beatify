@@ -110,7 +110,7 @@ export default function PartySearch({ roomId }) {
       </View>
       {results.map((item, i) => {
         const title = item.title || item.name || item.videoId;
-        const sub = Array.isArray(item.artists) ? item.artists.map((a) => a?.name).join(', ') : item.artists || '';
+        const sub = Array.isArray(item.artists) ? item.artists?.map((a) => a?.name).join(', ') : item.artists || '';
         return (
           <View key={(item.videoId || '') + i} style={styles.row}>
             <View style={styles.rowText}>

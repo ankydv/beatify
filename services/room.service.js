@@ -31,10 +31,12 @@ export const createPartyRoom = async ({ title, vibe, tags, isPrivate, roomId, to
 /**
  * Get active rooms with optional vibe or search filter
  */
-export const getActiveRooms = async ({ vibe = '', search = '', limit = 30 } = {}) => {
+export const getActiveRooms = async ({ vibe = '', search = '', limit = 30, token = null } = {}) => {
   try {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
     const response = await roomApi.get('/', {
       params: { vibe, search, limit },
+      headers,
     });
     return response.data;
   } catch (error) {
@@ -46,9 +48,10 @@ export const getActiveRooms = async ({ vibe = '', search = '', limit = 30 } = {}
 /**
  * Get discover feed of party rooms (categorized by vibe)
  */
-export const getDiscoverRooms = async () => {
+export const getDiscoverRooms = async (token = null) => {
   try {
-    const response = await roomApi.get('/discover');
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const response = await roomApi.get('/discover', { headers });
     return response.data;
   } catch (error) {
     console.error('Error fetching discover rooms:', error?.response?.data || error.message);

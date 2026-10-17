@@ -8,6 +8,7 @@ import {
   StyleSheet,
   BackHandler,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -86,6 +87,32 @@ const PartyRoom = () => {
   const participants = party.participants || [];
   const count = participants.length;
 
+  const handleMemberPress = (p) => {
+    if (!p.clerkId) {
+      Alert.alert(p.name || 'Room Member', 'This user is listening anonymously.');
+      return;
+    }
+    Alert.alert(
+      `Connect with ${p.name || 'Member'}`,
+      'Send a friend request to unlock mutual synergy points and stay connected!',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Add Friend 🤝',
+          onPress: () => {
+            socket.emit('friend:add-in-room', { targetClerkId: p.clerkId, roomId }, (res) => {
+              if (res?.success) {
+                Alert.alert('Friend Request Sent! 🎉', 'You will earn mutual synergy points when accepted.');
+              } else {
+                Alert.alert('Notice', res?.message || 'Friend request already sent');
+              }
+            });
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       {/* ---------------- header ---------------- */}
@@ -133,6 +160,7 @@ const PartyRoom = () => {
         meId={socket.id}
         djId={party.djSocketId}
         muted={muted}
+        onPressMember={handleMemberPress}
       />
 
       {/* ---------------- the ONE flexible region (chat / queue) ---------------- */}
@@ -359,7 +387,7 @@ export default PartyRoom;
 /* ------------------------------------------------------------------ */
 /* Participant strip — horizontal, compact height, never squeezes out  */
 /* ------------------------------------------------------------------ */
-function ParticipantStrip({ participants, presence, meId, djId, muted }) {
+function ParticipantStrip({ participants, presence, meId, djId, muted, onPressMember }) {
   return (
     <View style={styles.stripWrap}>
       <View style={styles.stripHead}>
@@ -385,7 +413,12 @@ function ParticipantStrip({ participants, presence, meId, djId, muted }) {
             const name = p.name || p.userName || 'Guest';
             const initial = String(name).trim().charAt(0).toUpperCase() || '?';
             return (
-              <View key={String(p.id)} style={styles.person}>
+              <TouchableOpacity
+                key={String(p.id)}
+                style={styles.person}
+                onPress={() => !isMe && onPressMember && onPressMember(p)}
+                activeOpacity={isMe ? 1 : 0.75}
+              >
                 <View
                   style={[
                     styles.avatarRing,
@@ -422,7 +455,7 @@ function ParticipantStrip({ participants, presence, meId, djId, muted }) {
                 >
                   {isMe ? 'You' : name}
                 </Text>
-              </View>
+              </TouchableOpacity>
             );
           })
         )}
