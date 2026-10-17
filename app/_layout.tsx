@@ -98,6 +98,8 @@ function RootLayoutNav() {
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="player" options={{ headerShown: false }} />
               <Stack.Screen name="voiceRoom" options={{ headerShown: false }} />
+              <Stack.Screen name="album" options={{ headerShown: false }} />
+              <Stack.Screen name="artist" options={{ headerShown: false }} />
               <Stack.Screen name="updater" options={{ headerShown: false }} />
               <Stack.Screen name="addToPlaylist" options={{ headerShown: true, title: "Add To Playlists",
                  presentation: "modal", // makes it slide up like a modal

@@ -3,20 +3,33 @@ import { Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text } from './Themed';
 
 const SongCard = ({ item, onPress }) => {
+  if (!item) return null;
+  const thumbUri =
+    item.thumbnails?.[1]?.url ||
+    item.thumbnails?.[0]?.url ||
+    (Array.isArray(item.thumbnail) ? item.thumbnail[0]?.url : item.thumbnail) ||
+    null;
+  const isArtist = Boolean(item.subscribers) || item.resultType === 'artist';
+
   return (
-    <>{item && 
-    <TouchableOpacity style={styles.card} onPress={onPress}>
-      <Image source={{ uri: item.thumbnails[1]?.url || item.thumbnails[0].url }} 
-        style={[styles.image, item.subscribers && {borderRadius: 100}]} />
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
+      {thumbUri ? (
+        <Image
+          source={{ uri: thumbUri }}
+          style={[styles.image, isArtist && { borderRadius: 60 }]}
+        />
+      ) : (
+        <View style={[styles.image, isArtist && { borderRadius: 60 }, { backgroundColor: '#444' }]} />
+      )}
       <Text style={styles.title} numberOfLines={1}>
         {item.title}
       </Text>
-      <Text style={styles.title} numberOfLines={1}>
-        {item.subtitle}
-      </Text>
+      {item.subtitle ? (
+        <Text style={styles.subtitle} numberOfLines={1}>
+          {item.subtitle}
+        </Text>
+      ) : null}
     </TouchableOpacity>
-    }
-    </>
   );
 };
 

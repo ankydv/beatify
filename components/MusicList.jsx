@@ -9,13 +9,23 @@ const MusicList = ({ dataset, isQueue, onPress }) => {
   const dispatch = useDispatch();
   const navigation = useNavigation();
 
-  if(!onPress){
+  if (!onPress) {
     onPress = (song) => {
-      dispatch(loadAndPlayTrack({ track: song, isQueueTrack: isQueue, newQueue: Object.assign({}, {tracks: dataset}) })).unwrap();
-      if(!isQueue)
-        navigation.navigate("player");
-    }
-}
+      const isArtist = song.resultType === 'artist' || Boolean(song.subscribers);
+      const isAlbum = song.resultType === 'album';
+      const isPlaylist = song.resultType === 'playlist';
+      if (isArtist) {
+        navigation.navigate("artist", { id: song.browseId || song.channelId || song.id });
+      } else if (isAlbum || isPlaylist) {
+        navigation.navigate("album", { id: song.browseId || song.playlistId, isPlaylist: Boolean(isPlaylist) });
+      } else {
+        dispatch(loadAndPlayTrack({ track: song, isQueueTrack: isQueue, newQueue: Object.assign({}, { tracks: dataset }) })).unwrap();
+        if (!isQueue) {
+          navigation.navigate("player");
+        }
+      }
+    };
+  }
 
   const formatArtists = (artists) => {
     if (!artists || artists.length === 0) return "";

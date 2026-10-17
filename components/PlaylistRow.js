@@ -12,33 +12,45 @@ const PlaylistRow = ({ items, title }) => {
   const router = useRouter();
   const dispatch = useDispatch();
 
-  const isArtist = title.includes('artist');
+  const isArtistCategory = title.includes('artist');
   const handlePress = (item) => {
-    const isVideo = item.videoId;
+    const isVideo = Boolean(item.videoId);
+    const isArtist = isArtistCategory || item.resultType === 'artist' || Boolean(item.subscribers);
+    const isPlaylist = Boolean(item.playlistId);
     const isAlbum = title.includes('album') || Boolean(item.browseId);
-    const isPlaylist = Boolean(item.playlistId)
-    if(isVideo){
-      dispatch(loadAndPlayTrack({track: item}))
-    }
-    else if(isArtist)
-      showUnimplementedFeatureAlert();
-    else if(isAlbum || isPlaylist){
+
+    if (isVideo) {
+      dispatch(loadAndPlayTrack({ track: item }));
+    } else if (isArtist) {
       router.push({
-        pathname: "/(tabs)/homeRoutes/Album",
-        params: { id: isPlaylist?item.playlistId:item.browseId, isPlaylist: isPlaylist }, 
+        pathname: "/artist",
+        params: { id: item.browseId || item.channelId || item.id },
       });
-    }
-    else{
+    } else if (isAlbum || isPlaylist) {
+      router.push({
+        pathname: "/album",
+        params: { id: isPlaylist ? item.playlistId : item.browseId, isPlaylist: Boolean(isPlaylist) },
+      });
+    } else {
       showUnimplementedFeatureAlert();
     }
-  }
+  };
+
   return (
     <FlatList
       horizontal
       data={items}
       renderItem={({ item }) => <SongCard item={item} onPress={() => handlePress(item)}/>}
-      keyExtractor={(item) => item?.title}
+      keyExtractor={(item, index) =>
+        item?.playlistId ||
+        item?.browseId ||
+        item?.videoId ||
+        `${item?.title || 'item'}_${index}`
+      }
       showsHorizontalScrollIndicator={false}
+      initialNumToRender={6}
+      maxToRenderPerBatch={8}
+      windowSize={5}
     />
   );
 };

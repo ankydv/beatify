@@ -8,6 +8,9 @@ import { createSlice } from '@reduxjs/toolkit';
 // personal track while party audio plays.
 const initialState = {
   roomId: null,
+  title: null,
+  vibe: null,
+  tags: [],
   role: 'listener', // 'dj' | 'listener'
   djSocketId: null,
   queue: [],
@@ -113,6 +116,9 @@ const partySlice = createSlice({
     applyState(state, action) {
       const s = action.payload || {};
       if (s.roomId !== undefined) state.roomId = s.roomId;
+      if (s.title !== undefined) state.title = s.title;
+      if (s.vibe !== undefined) state.vibe = s.vibe;
+      if (s.tags !== undefined) state.tags = s.tags;
       if (s.queue !== undefined) state.queue = s.queue;
       if (s.pendingRequests !== undefined) state.pendingRequests = s.pendingRequests;
       if (s.currentIndex !== undefined) state.currentIndex = s.currentIndex;

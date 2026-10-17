@@ -98,7 +98,7 @@ const PartyRoom = () => {
         </View>
         <View style={styles.headerMeta}>
           <View style={styles.roomNameContainer}>
-            <Text style={styles.roomName}>Room {roomId}</Text>
+            <Text style={styles.roomName}>{party.title || `Room ${roomId}`}</Text>
           </View>
           <Text style={styles.headerSub}>
             {party.joining
