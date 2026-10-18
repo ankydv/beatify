@@ -104,7 +104,8 @@ const PartyRoom = () => {
   const [invitedIds, setInvitedIds] = useState([]);
 
   const handleMemberPress = (p) => {
-    if (!p.clerkId) {
+    if (!p.id) {
+      console.log(p)
       Alert.alert(p.name || 'Room Member', 'This user is listening anonymously.');
       return;
     }

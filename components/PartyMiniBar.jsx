@@ -35,24 +35,30 @@ function PartyMiniBar() {
   const participantCount = useSelector((s) => s.party.participants?.length ?? 0);
   const { muted, toggleMute } = usePartyPresence();
 
-  // Position animated value
-  const initialX = SCREEN_WIDTH - PILL_WIDTH - 16;
-  const initialY = 110;
-  const pan = useRef(new Animated.ValueXY({ x: initialX, y: initialY })).current;
-  const currentPos = useRef({ x: initialX, y: initialY });
+  // ---- Floating position (drag state lives entirely in refs: zero re-renders) ----
+  const DEFAULT_POS = {
+    x: SCREEN_WIDTH - PILL_WIDTH - 16,
+    y: 110,
+  };
+  // useState initializer = guaranteed single creation, never null (unlike
+  // useRef(null) + render-time assignment which leaves a null window).
+  const [pan] = React.useState(() => new Animated.ValueXY({ ...DEFAULT_POS }));
+  const panRef = useRef(null);
+  panRef.current = pan;
+  // Plain-object ref with a REAL initial value so `.current.x` can never throw.
+  const basePosRef = useRef({ ...DEFAULT_POS });
 
-  // Sync listener to guarantee exact coordinates without accessing private internals
-  useEffect(() => {
-    const id = pan.addListener((value) => {
-      currentPos.current = value;
-    });
-    return () => {
-      pan.removeListener(id);
+  // Fresh window metrics per call => rotation-safe, no extra re-renders.
+  const clampPos = (x, y) => {
+    const { width: w, height: h } = Dimensions.get('window');
+    return {
+      x: Math.min(Math.max(x, 8), Math.max(8, w - PILL_WIDTH - 8)),
+      y: Math.min(Math.max(y, 50), Math.max(50, h - 120)),
     };
-  }, [pan]);
+  };
 
   // Pulse animation for LIVE indicator
-  const pulse = useRef(new Animated.Value(0.45)).current;
+  const [pulse] = React.useState(() => new Animated.Value(0.45));
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
@@ -64,60 +70,75 @@ function PartyMiniBar() {
     return () => loop.stop();
   }, [pulse]);
 
-  // High-performance PanResponder with capture-phase drag negotiation
-  const panResponder = useRef(
-    PanResponder.create({
+  const settleDrag = (gestureState) => {
+    const base = basePosRef.current ?? DEFAULT_POS;
+    const pv = panRef.current ?? pan;
+    const raw = {
+      x: base.x + (gestureState?.dx ?? 0),
+      y: base.y + (gestureState?.dy ?? 0),
+    };
+    const dropped = clampPos(raw.x, raw.y);
+    basePosRef.current = dropped; // commit first: survives interruptions
+    pv.setValue(raw); // restart spring from finger-lift spot
+    Animated.spring(pv, {
+      toValue: dropped,
+      useNativeDriver: false,
+      friction: 7,
+      tension: 40,
+    }).start();
+  };
+  const panResponderRef = useRef(null);
+  if (panResponderRef.current == null) {
+    panResponderRef.current = PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onStartShouldSetPanResponderCapture: () => false,
 
       // Capture drag movement before inner TouchableOpacity handles it
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3;
+        return (
+          Math.abs(gestureState?.dx ?? 0) > 3 || Math.abs(gestureState?.dy ?? 0) > 3
+        );
       },
       onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3;
+        return (
+          Math.abs(gestureState?.dx ?? 0) > 3 || Math.abs(gestureState?.dy ?? 0) > 3
+        );
       },
 
       onPanResponderGrant: () => {
-        pan.stopAnimation();
-        pan.setOffset({
-          x: currentPos.current.x,
-          y: currentPos.current.y,
-        });
-        pan.setValue({ x: 0, y: 0 });
+        // Kill any in-flight edge-snap spring, then anchor the new drag at
+        // the last COMMITTED drop point. No offsets, no listener values.
+        const pv = panRef.current ?? pan;
+        const base = basePosRef.current ?? DEFAULT_POS;
+        pv.stopAnimation();
+        pv.setValue({ x: base.x, y: base.y });
       },
 
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-        useNativeDriver: false,
-      }),
+      // Manual setValue (not Animated.event) so the drop point can be derived
+      // from the same live gestureState deltas on release.
+      onPanResponderMove: (_, gestureState) => {
+        const pv = panRef.current ?? pan;
+        const base = basePosRef.current ?? DEFAULT_POS;
+        pv.setValue({
+          x: base.x + (gestureState?.dx ?? 0),
+          y: base.y + (gestureState?.dy ?? 0),
+        });
+      },
 
-      onPanResponderRelease: () => {
-        pan.flattenOffset();
-        const minX = 8;
-        const maxX = SCREEN_WIDTH - PILL_WIDTH - 8;
-        const minY = 50;
-        const maxY = SCREEN_HEIGHT - 120;
+      onPanResponderRelease: (_, gestureState) => {
+        settleDrag(gestureState);
+      },
 
-        let curX = currentPos.current.x;
-        let curY = currentPos.current.y;
-
-        if (curX < minX) curX = minX;
-        if (curX > maxX) curX = maxX;
-        if (curY < minY) curY = minY;
-        if (curY > maxY) curY = maxY;
-
-        Animated.spring(pan, {
-          toValue: { x: curX, y: curY },
-          useNativeDriver: false,
-          friction: 7,
-          tension: 40,
-        }).start();
+      onPanResponderTerminate: (_, gestureState) => {
+        // OS interruption (e.g. incoming call gesture) — settle, don't snap back.
+        settleDrag(gestureState);
       },
 
       onPanResponderTerminationRequest: () => false,
       onShouldBlockNativeResponder: () => true,
-    })
-  ).current;
+    });
+  }
+  const panResponder = panResponderRef.current;
 
   if (!roomId || !minimised) return null;
 
