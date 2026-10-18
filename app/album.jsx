@@ -13,6 +13,7 @@ import LoadingIndicator from "@/components/LoadingIndicator";
 import { usePlaylistApi } from "@/hooks/library.hooks/playlist.hooks";
 import { useDispatch } from "react-redux";
 import { loadAndPlayTrack } from "@/state/slices/audio.slice";
+import { handleVoiceRoomSongTap } from "@/utils/partyPlayback.utils";
 
 const AlbumScreen = () => {
   const { id, isPlaylist, isUserPlaylist } = useLocalSearchParams();
@@ -66,8 +67,10 @@ const AlbumScreen = () => {
     return <LoadingIndicator />;
   }
 
-  const onPressPlayAll = () => {
+  const onPressPlayAll = async () => {
     if (!album?.tracks || album.tracks.length === 0) return;
+    const handled = await handleVoiceRoomSongTap(album.tracks[0]);
+    if (handled) return;
     dispatch(
       loadAndPlayTrack({
         track: album.tracks[0],

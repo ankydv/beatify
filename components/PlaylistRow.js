@@ -6,6 +6,8 @@ import { loadAndPlayTrack } from '@/state/slices/audio.slice';
 import { showUnimplementedFeatureAlert } from "../utils/alerts.utils";
 import { useDispatch } from 'react-redux';
 
+import { handleVoiceRoomSongTap } from '@/utils/partyPlayback.utils';
+
 const PlaylistRow = ({ items, title }) => {
 
   const navigation = useNavigation();
@@ -13,19 +15,28 @@ const PlaylistRow = ({ items, title }) => {
   const dispatch = useDispatch();
 
   const isArtistCategory = title.includes('artist');
-  const handlePress = (item) => {
+  const handlePress = async (item) => {
     const isVideo = Boolean(item.videoId);
     const isArtist = isArtistCategory || item.resultType === 'artist' || Boolean(item.subscribers);
     const isPlaylist = Boolean(item.playlistId);
     const isAlbum = title.includes('album') || Boolean(item.browseId);
 
     if (isVideo) {
+      const handled = await handleVoiceRoomSongTap(item);
+      if (handled) return;
       dispatch(loadAndPlayTrack({ track: item }));
     } else if (isArtist) {
-      router.push({
-        pathname: "/artist",
-        params: { id: item.browseId || item.channelId || item.id },
-      });
+      const artistId =
+        item.browseId ||
+        item.channelId ||
+        item.id ||
+        (Array.isArray(item.artists) && item.artists[0]?.id);
+      if (artistId) {
+        router.push({
+          pathname: "/artist",
+          params: { id: artistId },
+        });
+      }
     } else if (isAlbum || isPlaylist) {
       router.push({
         pathname: "/album",

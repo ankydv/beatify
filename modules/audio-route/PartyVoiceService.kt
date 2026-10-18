@@ -79,8 +79,8 @@ class PartyVoiceService : Service() {
                 ?: android.R.drawable.ic_btn_speak_now
 
             val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Beatify Party Voice")
-                .setContentText("Voice chat and audio streaming active")
+                .setContentTitle("In Party / Jam")
+                .setContentText("Click to open")
                 .setSmallIcon(iconRes)
                 .setOngoing(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)

@@ -59,15 +59,31 @@ const Search = () => {
   const rearrangeResponse = (res, currentFilter) => {
     if (!Array.isArray(res)) return [];
 
+    // Normalize items so Top result artists, songs, and albums have consistent fields
+    const normalized = res.map((item) => {
+      if (!item) return item;
+      const copy = { ...item };
+      const isArtist = copy.resultType === "artist" || Boolean(copy.subscribers);
+      if (isArtist) {
+        const firstArtist = Array.isArray(copy.artists) && copy.artists[0];
+        const artistId = copy.browseId || copy.channelId || copy.id || firstArtist?.id;
+        const artistName = copy.name || copy.artist || copy.title || firstArtist?.name;
+        if (artistId && !copy.browseId) copy.browseId = artistId;
+        if (artistName && !copy.name) copy.name = artistName;
+        if (artistName && !copy.title) copy.title = artistName;
+      }
+      return copy;
+    });
+
     // If a specific category filter was applied, group everything into that single category
     if (currentFilter && currentFilter !== "all") {
       const matchedFilter = SEARCH_FILTERS.find((f) => f.id === currentFilter);
       const categoryTitle = matchedFilter ? matchedFilter.label : "Results";
-      return [{ category: categoryTitle, data: res }];
+      return [{ category: categoryTitle, data: normalized }];
     }
 
     // Default mixed response grouping
-    return res.reduce((acc, item) => {
+    return normalized.reduce((acc, item) => {
       var { category, ...rest } = item;
       if (category === "Profiles") return acc;
       if (category == null) {

@@ -22,6 +22,7 @@ import BubbleIcon from "@/components/BubbleIcon";
 import BlurImageBg from "@/components/BlurImageBg";
 import LoadingIndicator from "@/components/LoadingIndicator";
 import { loadAndPlayTrack } from "@/state/slices/audio.slice";
+import { handleVoiceRoomSongTap } from "@/utils/partyPlayback.utils";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -40,7 +41,11 @@ const ArtistScreen = () => {
   const dispatch = useDispatch();
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      setLoading(false);
+      setError("Artist information is not available");
+      return;
+    }
     setLoading(true);
     getArtist(id)
       .then((data) => {
@@ -73,9 +78,11 @@ const ArtistScreen = () => {
     }
   };
 
-  const playTopSongs = () => {
+  const playTopSongs = async () => {
     const songs = artist?.songs?.results;
     if (!songs || songs.length === 0) return;
+    const handled = await handleVoiceRoomSongTap(songs[0]);
+    if (handled) return;
     dispatch(
       loadAndPlayTrack({
         track: songs[0],

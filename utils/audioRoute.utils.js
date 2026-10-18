@@ -8,11 +8,26 @@ import { AppState, Platform, NativeModules, NativeEventEmitter } from 'react-nat
  */
 let currentAudioOutput = 'speaker'; // 'speaker' | 'bluetooth'
 let incomingMuted = false;
+let isPartyAudioActive = false;
 
 const routeEmitter =
   NativeModules.AudioRouteModule?.addListener && Platform.OS === 'android'
     ? new NativeEventEmitter(NativeModules.AudioRouteModule)
     : null;
+
+/**
+ * Mark whether a party voice room is currently active.
+ */
+export function setPartyAudioActive(active) {
+  isPartyAudioActive = Boolean(active);
+  if (!active) {
+    resetAudioOutput().catch(() => {});
+  }
+}
+
+export function isPartyAudioSession() {
+  return isPartyAudioActive;
+}
 
 /**
  * Apply the requested audio route to both native AudioManager and ExoPlayer (TrackPlayer).
@@ -22,9 +37,10 @@ const routeEmitter =
 export async function applyAudioOutput(targetMode) {
   const mode = String(targetMode || currentAudioOutput).toLowerCase();
   currentAudioOutput = mode === 'bluetooth' || mode === 'bluetooth_hq' ? 'bluetooth' : 'speaker';
+  isPartyAudioActive = true;
 
   // 1. Native AudioRouteModule controls both Android AudioManager (WebRTC communication)
-  // and ExoPlayer AudioTrack (TrackPlayer media stream).
+  // and ExoPlayer AudioTrack (TrackPlayer media stream) during party voice rooms.
   try {
     if (NativeModules?.AudioRouteModule?.setRoute) {
       await NativeModules.AudioRouteModule.setRoute(currentAudioOutput);
@@ -69,6 +85,7 @@ export async function releasePartyLocks() {
  * Reset audio routing back to normal system behavior when leaving room or destroying player.
  */
 export async function resetAudioOutput() {
+  isPartyAudioActive = false;
   currentAudioOutput = 'speaker';
   try {
     await releasePartyLocks();
@@ -201,30 +218,15 @@ export function subscribeAudioRoutesChanged(callback) {
   };
 }
 
-// Re-assert audio routing whenever the app resumes from lock screen / background.
-// Android's AudioManager often reverts communication routing on lock/unlock.
+// Re-assert audio routing ONLY when a party voice room is currently active.
+// Android's AudioManager often reverts communication routing on lock/unlock during calls.
 if (Platform.OS === 'android') {
   AppState.addEventListener('change', (nextState) => {
-    if (nextState === 'active') {
+    if (nextState === 'active' && isPartyAudioActive) {
       applyAudioOutput().catch(() => {});
     }
   });
 
-  // Re-assert audio routing whenever a new track loads or starts in TrackPlayer
-  try {
-    const TrackPlayer = require('react-native-track-player').default;
-    const { Event } = require('react-native-track-player');
-    if (TrackPlayer?.addEventListener && Event) {
-      if (Event.PlaybackTrackChanged) {
-        TrackPlayer.addEventListener(Event.PlaybackTrackChanged, () => {
-          applyAudioOutput().catch(() => {});
-        });
-      }
-      if (Event.PlaybackState) {
-        TrackPlayer.addEventListener(Event.PlaybackState, () => {
-          applyAudioOutput().catch(() => {});
-        });
-      }
-    }
-  } catch (e) {}
+  // NOTE: Standard media playback outside party rooms is left untouched to allow
+  // Android system auto-routing (Bluetooth A2DP, wired headphones, speaker).
 }

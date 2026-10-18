@@ -73,13 +73,14 @@ export const sendDirectMessage = async ({
   roomTitle = null,
   saveToCloud = false,
   uuid = null,
+  senderName = null,
   token,
 } = {}) => {
   try {
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
     const response = await friendApi.post(
       '/messages/send',
-      { recipientId, message, type, roomId, roomTitle, saveToCloud, uuid },
+      { recipientId, message, type, roomId, roomTitle, saveToCloud, uuid, senderName },
       { headers }
     );
     return response.data;
@@ -110,4 +111,16 @@ export const ackMessagesApi = async ({ messageUuids, token } = {}) => {
     return { success: false, purgedCount: 0 };
   }
 };
+
+export const registerFcmTokenApi = async ({ fcmToken, token } = {}) => {
+  try {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const response = await friendApi.post('/messages/fcm-token', { fcmToken }, { headers });
+    return response.data;
+  } catch (error) {
+    console.error('Error registering FCM token:', error?.response?.data || error.message);
+    return { success: false };
+  }
+};
+
 

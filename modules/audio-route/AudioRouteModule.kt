@@ -199,6 +199,17 @@ class AudioRouteModule(private val reactContext: ReactApplicationContext) :
         super.initialize()
         AudioRoutePackage.initWebRtcMediaPlayout(reactContext)
         bindMusicServiceSafely()
+        // Ensure standard media playback starts clean on app launch without forced speaker routing
+        Handler(Looper.getMainLooper()).post {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    audioManager.clearCommunicationDevice()
+                }
+                applyExoPlayerRoute(null)
+                audioManager.isSpeakerphoneOn = false
+                audioManager.mode = AudioManager.MODE_NORMAL
+            } catch (_: Exception) {}
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
                 audioManager.registerAudioDeviceCallback(object : AudioDeviceCallback() {

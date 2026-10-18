@@ -34,6 +34,28 @@ export const getLocalMessages = async (friendId) => {
 };
 
 /**
+ * Get paginated messages stored locally on device for a specific friend
+ * Returns the most recent `limit` messages (e.g., last 20), along with total and hasMore flag.
+ */
+export const getLocalMessagesPaginated = async (friendId, limit = 20) => {
+  if (!friendId) return { messages: [], total: 0, hasMore: false };
+  try {
+    const all = await getLocalMessages(friendId);
+    const total = all.length;
+    const start = Math.max(0, total - limit);
+    const messages = all.slice(start);
+    return {
+      messages,
+      total,
+      hasMore: start > 0,
+    };
+  } catch (e) {
+    console.warn('Failed to load paginated messages:', e);
+    return { messages: [], total: 0, hasMore: false };
+  }
+};
+
+/**
  * Save a message locally on device
  */
 export const saveMessageLocally = async (friendId, msg, isOutgoing = false) => {
@@ -61,6 +83,7 @@ export const saveMessageLocally = async (friendId, msg, isOutgoing = false) => {
       _id: incomingId || `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       uuid: incomingId || undefined,
       senderId: msg.senderId,
+      senderName: msg.senderName || undefined,
       recipientId: msg.recipientId,
       message: msg.message,
       type: msg.type || (msg.roomId ? 'jam_invite' : 'text'),
@@ -84,6 +107,37 @@ export const saveMessageLocally = async (friendId, msg, isOutgoing = false) => {
     return updated;
   } catch (e) {
     console.warn('Failed to save message locally:', e);
+    return [];
+  }
+};
+
+/**
+ * Mark outgoing messages as sent (confirmed written by server, single checkmark)
+ */
+export const markOutgoingMessagesAsSent = async (friendId, messageUuids = null) => {
+  if (!friendId) return [];
+  try {
+    const messages = await getLocalMessages(friendId);
+    let changed = false;
+    const targetSet = Array.isArray(messageUuids) ? new Set(messageUuids) : null;
+
+    const updated = messages.map((m) => {
+      if (m.isOutgoing && m.status === 'sending') {
+        const matches = !targetSet || targetSet.has(m.uuid) || targetSet.has(m._id);
+        if (matches) {
+          changed = true;
+          return { ...m, status: 'sent' };
+        }
+      }
+      return m;
+    });
+
+    if (changed) {
+      await AsyncStorage.setItem(`${CHAT_PREFIX}${friendId}`, JSON.stringify(updated));
+      notifySubscribers();
+    }
+    return updated;
+  } catch (e) {
     return [];
   }
 };
@@ -150,9 +204,24 @@ export const markOutgoingMessagesAsSeen = async (friendId) => {
  * Active Chat Tracker: Track which friend's chat screen is currently open
  */
 let currentActiveChatId = null;
+const activeChatListeners = new Set();
+
+export const subscribeToActiveChat = (fn) => {
+  activeChatListeners.add(fn);
+  fn(currentActiveChatId);
+  return () => activeChatListeners.delete(fn);
+};
 
 export const setActiveChatId = (friendId) => {
-  currentActiveChatId = friendId ? String(friendId) : null;
+  const nextId = friendId ? String(friendId) : null;
+  if (currentActiveChatId !== nextId) {
+    currentActiveChatId = nextId;
+    activeChatListeners.forEach((fn) => {
+      try {
+        fn(currentActiveChatId);
+      } catch (e) {}
+    });
+  }
 };
 
 export const getActiveChatId = () => currentActiveChatId;

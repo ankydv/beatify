@@ -26,6 +26,7 @@ import {
   setAudioOutputMode,
   setMuteIncomingSound,
   getAvailableAudioRoutes,
+  resetAudioOutput,
 } from '@/utils/audioRoute.utils';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -81,6 +82,7 @@ const PartyRoom = () => {
   }, [dispatch, navigation]);
 
   const leave = () => {
+    resetAudioOutput().catch(() => {});
     dispatch(resetParty());
     if (navigation.canGoBack()) {
       navigation.goBack();
@@ -299,7 +301,7 @@ const PartyRoom = () => {
                   >
                     Bluetooth (HQ Audio)
                   </Text>
-                  <Text style={styles.routeSub}>HD stereo music & WebRTC voice (uses phone mic)</Text>
+                  <Text style={styles.routeSub}>HD music(uses phone mic)</Text>
                 </View>
                 {(audioOutput === 'bluetooth' || audioOutput === 'bluetooth_hq') ? (
                   <Icon name="check" size={18} color="#38bdf8" />

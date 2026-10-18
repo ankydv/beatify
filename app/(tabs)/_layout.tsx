@@ -6,7 +6,7 @@ import { AntDesign, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-i
 import PlayerBar from '@/components/playerBar'
 import { useSelector } from 'react-redux';
 import { useTheme } from 'react-native-paper';
-import { getUnreadCounts, subscribeToChatUpdates } from '@/services/chatStorage.service';
+import { getUnreadCounts, subscribeToChatUpdates, subscribeToActiveChat, getActiveChatId } from '@/services/chatStorage.service';
 
 function TabBarIcon(props: {
   name: ComponentProps<typeof FontAwesome>['name'];
@@ -17,8 +17,17 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const { currentTrack } = useSelector((state: any) => state.audio);
+  const partyRoomId = useSelector((state: any) => state.party?.roomId);
   const { colors } = useTheme();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isChatConversationOpen, setIsChatConversationOpen] = useState(Boolean(getActiveChatId()));
+
+  // Robust visibility check:
+  // Show PlayerBar and its corresponding bottom padding ONLY when:
+  // 1. Audio track is loaded
+  // 2. Chat full-screen conversation is not open
+  // 3. Not in a party/voice room (voice room floating capsule controls audio instead)
+  const isPlayerBarVisible = Boolean(currentTrack && !isChatConversationOpen && !partyRoomId);
 
   useEffect(() => {
     let alive = true;
@@ -28,9 +37,13 @@ export default function TabLayout() {
     };
     sync();
     const unsub = subscribeToChatUpdates(sync);
+    const unsubActive = subscribeToActiveChat((id) => {
+      if (alive) setIsChatConversationOpen(Boolean(id));
+    });
     return () => {
       alive = false;
       unsub();
+      unsubActive();
     };
   }, []);
 
@@ -40,10 +53,12 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         headerShown: useClientOnlyValue(false, true),
-        tabBarStyle: {
-          height: 70,
-          marginTop: currentTrack ? 80 : 0,
-        },
+        tabBarStyle: isChatConversationOpen
+          ? { display: 'none', height: 0 }
+          : {
+              height: 70,
+              marginTop: isPlayerBarVisible ? 5 : 0,
+            },
         tabBarItemStyle: {
           paddingVertical: 10,
         },
@@ -101,7 +116,7 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
-    {currentTrack && <PlayerBar />}
+    {isPlayerBarVisible && <PlayerBar />}
     </>
   );
 }

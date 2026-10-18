@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
+import '../services/notification.service';
 import TrackPlayer from 'react-native-track-player';
 import store from '@/state/store';
 import { LightTheme as PaperLightTheme, DarkTheme as PaperDarkTheme } from '@/theme';
@@ -15,6 +16,7 @@ import GlobalModal from '../components/GlobalModal';
 import PartyHost from '../components/PartyHost';
 import GlobalChatManager from '../components/GlobalChatManager';
 import GlobalChatNotification from '../components/GlobalChatNotification';
+import { resetAudioOutput } from '@/utils/audioRoute.utils';
 import { StatusBar } from 'expo-status-bar';
 import { PaperProvider, Text, Title, adaptNavigationTheme, useTheme } from 'react-native-paper';
 import { ClerkProvider } from '@clerk/clerk-expo'
@@ -66,6 +68,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
+      resetAudioOutput().catch(() => {});
     }
   }, [loaded]);
 

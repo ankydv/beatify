@@ -12,11 +12,13 @@ import {
 } from '@/services/friend.service';
 import {
   getLocalMessages,
+  getLocalMessagesPaginated,
   saveMessageLocally,
   getUnreadCounts,
   markChatAsRead,
   subscribeToChatUpdates,
   setActiveChatId,
+  markOutgoingMessagesAsSent,
   markOutgoingMessagesAsDelivered,
   markOutgoingMessagesAsSeen,
 } from '@/services/chatStorage.service';
@@ -36,6 +38,9 @@ export const useFriends = () => {
   activeChatFriendRef.current = activeChatFriend;
 
   const [chatMessages, setChatMessages] = useState([]);
+  const [displayLimit, setDisplayLimit] = useState(20);
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [sendingMsg, setSendingMsg] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({});
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
@@ -163,119 +168,24 @@ export const useFriends = () => {
     }
   }, [isSignedIn, processSweptMessages]);
 
-  // Real-time socket events for friend requests, messages, sweeps, and acks
+  // Real-time socket events for friend requests
   useEffect(() => {
     if (!isSignedIn) return;
     let alive = true;
 
-    const handleReqReceived = (req) => {
+    const handleReqReceived = () => {
       if (alive) {
         fetchPending();
-        setIncomingNotification({
-          type: 'friend_request',
-          title: 'New Friend Request 🤝',
-          message: `${req?.requesterName || 'A listener'} wants to connect and jam!`,
-          requesterId: req?.requesterId,
-        });
+        fetchFriends();
       }
     };
 
-    const handleMsgReceived = async (msg) => {
-      if (!alive || !msg) return;
-
-      const senderId = msg.senderId;
-      // If the message is from myself, do not duplicate as incoming
-      if (senderId && user?.id && senderId === user.id) return;
-
-      const currentActiveId = activeChatFriendRef.current?.friendId || activeChatFriendRef.current?.id;
-      const isChatOpen = currentActiveId === senderId;
-
-      // 1. Save locally to device DB
-      await saveMessageLocally(senderId, { ...msg, read: isChatOpen }, false);
-
-      // 2. The Ack & Purge Phase: confirm local write to server to HDEL from Upstash Redis
-      const uuid = msg.uuid || msg._id;
-      if (uuid) {
-        socket.emit('ack_messages', { messageUuids: [uuid] });
-      }
-
-      if (isChatOpen) {
-        setChatMessages((prev) => {
-          const incomingId = msg.uuid || msg._id;
-          if (prev.some((m) => (m.uuid || m._id) === incomingId)) return prev;
-          return [...prev, msg];
-        });
-      } else {
-        // Trigger in-app notification banner
-        const isInvite = msg.type === 'jam_invite' || Boolean(msg.roomId);
-        setIncomingNotification({
-          type: isInvite ? 'jam_invite' : 'message',
-          title: isInvite ? 'Party Room Invite 🎧' : 'New Message 💬',
-          message: msg.message,
-          senderId,
-          roomId: msg.roomId,
-          roomTitle: msg.roomTitle,
-        });
-      }
-
-      fetchFriends();
-      syncUnreadCounts();
-    };
-
-    const handleMsgSent = async (msg) => {
-      if (!alive || !msg) return;
-      const recipientId = msg.recipientId;
-      await saveMessageLocally(recipientId, { ...msg, read: true }, true);
-      const currentActiveId = activeChatFriendRef.current?.friendId || activeChatFriendRef.current?.id;
-      if (currentActiveId === recipientId) {
-        setChatMessages((prev) => {
-          if (prev.some((m) => (m.uuid || m._id) && (msg.uuid || msg._id) && (m.uuid || m._id) === (msg.uuid || msg._id))) return prev;
-          return [...prev, msg];
-        });
-      }
-    };
-
-    const handleSweepResponse = (data) => {
-      if (alive && data?.messages) {
-        processSweptMessages(data.messages);
-      }
-    };
-
-    (async () => {
-      try {
-        await ensureSocketConnected();
-        if (!alive) return;
-
-        socket.on('friend:request-received', handleReqReceived);
-        socket.on('friend:message-received', handleMsgReceived);
-        socket.on('friend:message-sent', handleMsgSent);
-        socket.on('chat:sweep-response', handleSweepResponse);
-        socket.on('inbox:swept', handleSweepResponse);
-        socket.on('connect', sweepPendingMessages);
-
-        // Immediate sweep on mount
-        sweepPendingMessages();
-      } catch (e) {}
-    })();
-
-    // Foreground listener: sweep when app comes to foreground
-    const appStateSub = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') {
-        sweepPendingMessages();
-      }
-    });
-
+    socket.on('friend:request-received', handleReqReceived);
     return () => {
       alive = false;
       socket.off('friend:request-received', handleReqReceived);
-      socket.off('friend:message-received', handleMsgReceived);
-      socket.off('friend:message-sent', handleMsgSent);
-      socket.off('chat:sweep-response', handleSweepResponse);
-      socket.off('inbox:swept', handleSweepResponse);
-      socket.off('connect', sweepPendingMessages);
-      appStateSub.remove();
     };
-  }, [isSignedIn, fetchPending, fetchFriends, syncUnreadCounts, sweepPendingMessages, processSweptMessages]);
+  }, [isSignedIn, fetchPending, fetchFriends]);
 
   const sendRequest = async (recipientId) => {
     const token = getTokenRef.current ? await getTokenRef.current() : null;
@@ -297,24 +207,27 @@ export const useFriends = () => {
     if (!activeChatFriend) return;
     const friendId = activeChatFriend.friendId || activeChatFriend.id;
     const syncConversation = async () => {
-      const msgs = await getLocalMessages(friendId);
-      setChatMessages(msgs);
+      const { messages, hasMore } = await getLocalMessagesPaginated(friendId, displayLimit);
+      setChatMessages(messages);
+      setHasMoreOlder(hasMore);
     };
     const unsub = subscribeToChatUpdates(syncConversation);
     return () => {
       unsub();
     };
-  }, [activeChatFriend]);
+  }, [activeChatFriend, displayLimit]);
 
-  // Open dedicated chat with friend
+  // Open dedicated chat with friend (loads last 20 messages)
   const openChat = async (friend) => {
     const friendId = friend.friendId || friend.id;
     setActiveChatId(friendId);
     setActiveChatFriend(friend);
+    setDisplayLimit(20);
 
-    // 1. Immediately load local messages from device
-    const localMsgs = await getLocalMessages(friendId);
-    setChatMessages(localMsgs);
+    // 1. Immediately load last 20 messages from device
+    const { messages, hasMore } = await getLocalMessagesPaginated(friendId, 20);
+    setChatMessages(messages);
+    setHasMoreOlder(hasMore);
 
     // 2. Mark chat as read
     await markChatAsRead(friendId);
@@ -322,14 +235,34 @@ export const useFriends = () => {
 
     // 3. Emit read receipt to sender over socket
     try {
-      socket.emit('friend:read-receipt', { recipientId: friendId });
+      socket.emit('friend:read-receipt', { recipientId: friendId, readerId: user?.id });
     } catch (e) {}
+  };
+
+  // Load 10 older messages when user pulls down or requests older history
+  const loadOlderMessages = async () => {
+    if (!activeChatFriend || loadingOlder || !hasMoreOlder) return;
+    setLoadingOlder(true);
+    try {
+      const friendId = activeChatFriend.friendId || activeChatFriend.id;
+      const nextLimit = displayLimit + 10;
+      const { messages, hasMore } = await getLocalMessagesPaginated(friendId, nextLimit);
+      setDisplayLimit(nextLimit);
+      setChatMessages(messages);
+      setHasMoreOlder(hasMore);
+    } catch (e) {
+      console.warn('Failed to load older messages:', e);
+    } finally {
+      setLoadingOlder(false);
+    }
   };
 
   const closeChat = () => {
     setActiveChatId(null);
     setActiveChatFriend(null);
     setChatMessages([]);
+    setDisplayLimit(20);
+    setHasMoreOlder(false);
   };
 
   // Send regular chat message
@@ -338,11 +271,19 @@ export const useFriends = () => {
     const friendId = activeChatFriend.friendId || activeChatFriend.id;
     setSendingMsg(true);
 
+    const myName =
+      user?.fullName ||
+      [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
+      user?.username ||
+      user?.primaryEmailAddress?.emailAddress?.split('@')[0] ||
+      '';
+
     const msgUuid = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const localMsg = {
       _id: msgUuid,
       uuid: msgUuid,
       senderId: user?.id,
+      senderName: myName,
       recipientId: friendId,
       message: text.trim(),
       type: 'text',
@@ -367,11 +308,12 @@ export const useFriends = () => {
         message: text.trim(),
         type: 'text',
         uuid: msgUuid,
+        senderName: myName,
         saveToCloud: false, // Default device-only
         token,
       });
-      // Mark as sent in local storage
-      await markOutgoingMessagesAsDelivered(friendId, [msgUuid]);
+      // Mark as sent in local storage (single checkmark until recipient ACKs)
+      await markOutgoingMessagesAsSent(friendId, [msgUuid]);
       fetchFriends();
     } catch (e) {
       console.warn('Failed to send message:', e);
@@ -385,6 +327,13 @@ export const useFriends = () => {
     if (!recipientId || !roomId) return;
     try {
       const token = getTokenRef.current ? await getTokenRef.current() : null;
+      const myName =
+        user?.fullName ||
+        [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
+        user?.username ||
+        user?.primaryEmailAddress?.emailAddress?.split('@')[0] ||
+        '';
+
       const inviteText = `Join my party room #${roomId}: ${roomTitle || 'Live Jam'} 🎧`;
       const invUuid = `inv_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -392,6 +341,7 @@ export const useFriends = () => {
         _id: invUuid,
         uuid: invUuid,
         senderId: user?.id,
+        senderName: myName,
         recipientId,
         message: inviteText,
         type: 'jam_invite',
@@ -423,6 +373,7 @@ export const useFriends = () => {
         roomId: String(roomId),
         roomTitle: roomTitle || `Party Room #${roomId}`,
         uuid: invUuid,
+        senderName: myName,
         saveToCloud: false,
         token,
       });
@@ -448,6 +399,9 @@ export const useFriends = () => {
     respondRequest,
     activeChatFriend,
     chatMessages,
+    hasMoreOlder,
+    loadingOlder,
+    loadOlderMessages,
     openChat,
     closeChat,
     sendChatMessage,

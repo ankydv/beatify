@@ -1,10 +1,12 @@
+import { Platform, ToastAndroid, Alert } from 'react-native';
 import TrackPlayer, {
   State,
   Capability,
   AppKilledPlaybackBehavior,
 } from 'react-native-track-player';
 import store from '@/state/store';
-import { socket } from '@/configs/socket';
+import { socket, emitWithAck } from '@/configs/socket';
+import { resolveBundle, toArtists, toThumb } from '@/utils/partyDj.utils';
 
 let scheduledTimer = null;
 let playerReadyPromise = null;
@@ -393,3 +395,67 @@ export async function pauseParty() {
     await TrackPlayer.pause();
   } catch (e) {}
 }
+
+/**
+ * Intercepts song tap if inside an active party/voice room:
+ * - If DJ: adds song to room queue (and starts playback if queue is empty/idle)
+ * - If Listener: sends song request to DJ
+ * Returns true if handled by voice room, false if personal playback should proceed.
+ */
+export async function handleVoiceRoomSongTap(song, feedback = true) {
+  if (!song) return false;
+  const p = store.getState()?.party;
+  if (!p?.roomId) return false;
+
+  const notify = (msg) => {
+    if (Platform.OS === 'android') {
+      try {
+        ToastAndroid.show(msg, ToastAndroid.SHORT);
+      } catch (_) {}
+    } else {
+      try {
+        Alert.alert('Party Room', msg);
+      } catch (_) {}
+    }
+  };
+
+  const isDj = p.role === 'dj';
+  const videoId = song.videoId || song.id;
+  const normalizedSong = { ...song, videoId };
+
+  try {
+    if (isDj) {
+      const bundle = await resolveBundle(normalizedSong);
+      const res = await emitWithAck('dj:queue-add', { roomId: p.roomId, bundle });
+      if (!res?.success) throw new Error(res?.message || 'Could not add to room queue');
+
+      const wasEmpty = !p.queue || p.queue.length === 0 || (p.status === 'idle' && p.currentIndex === -1);
+      if (wasEmpty) {
+        const queueId = res?.queueId || res?.item?.queueId || res?.track?.queueId;
+        if (queueId) {
+          try {
+            await emitWithAck('dj:load', { roomId: p.roomId, queueId, positionMs: 0, playAtServerMs: Date.now() + 2500 });
+          } catch (_) {}
+        }
+      }
+      if (feedback) notify(`Added "${bundle.title || normalizedSong.title}" to room queue 🎵`);
+      return true;
+    } else {
+      const res = await emitWithAck('dj:request-add', {
+        roomId: p.roomId,
+        videoId,
+        title: normalizedSong.title || normalizedSong.name || videoId,
+        artists: toArtists(normalizedSong),
+        thumb: toThumb(normalizedSong),
+        durationSec: Number(normalizedSong.durationSec) || 0,
+      });
+      if (!res?.success) throw new Error(res?.message || 'Could not request song');
+      if (feedback) notify(`Requested "${normalizedSong.title || normalizedSong.name || 'Song'}" to DJ 🙋`);
+      return true;
+    }
+  } catch (err) {
+    if (feedback) notify(err?.message || 'Failed to add/request song');
+    return true;
+  }
+}
+

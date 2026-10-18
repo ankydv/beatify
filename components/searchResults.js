@@ -8,24 +8,39 @@ import { showUnimplementedFeatureAlert } from "@/utils/alerts.utils";
 import { useTheme, Text } from "react-native-paper";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
+import { handleVoiceRoomSongTap } from "@/utils/partyPlayback.utils";
+
 const SearchResults = ({ results, onViewAll, activeFilter = "all" }) => {
   const dispatch = useDispatch();
   const router = useRouter();
   const theme = useTheme();
 
-  const handlePress = (item) => {
+  const handlePress = async (item) => {
     const isAlbum = item.resultType === 'album';
     const isPlaylist = item.resultType === 'playlist';
     const isArtist = item.resultType === 'artist' || Boolean(item.subscribers);
 
-    if (item.videoId) {
+    if (item.videoId || (!isArtist && !isAlbum && !isPlaylist && item.id)) {
+      // Intercept if active in a party/voice room
+      const handled = await handleVoiceRoomSongTap(item);
+      if (handled) return;
+
       dispatch(loadAndPlayTrack({ track: item }));
       router.push("/player");
     } else if (isArtist) {
-      router.push({
-        pathname: "/artist",
-        params: { id: item.browseId || item.channelId || item.id },
-      });
+      const artistId =
+        item.browseId ||
+        item.channelId ||
+        item.id ||
+        (Array.isArray(item.artists) && item.artists[0]?.id) ||
+        (item.artist && typeof item.artist === 'object' ? item.artist.id : null);
+
+      if (artistId) {
+        router.push({
+          pathname: "/artist",
+          params: { id: artistId },
+        });
+      }
     } else if (isAlbum || isPlaylist) {
       router.push({
         pathname: "/album",

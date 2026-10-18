@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Image, StyleSheet, Pressable, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme, Text } from "react-native-paper";
@@ -16,8 +16,8 @@ const PlayerBar = () => {
   const navigation = useNavigation();
   const { currentTrack, metadata } = useSelector((state) => state.audio);
   const { minimised, roomId } = useSelector((s) => s.party);
-  const track = new Track(currentTrack);
-  const md = new Metadata(metadata);
+  const track = useMemo(() => (currentTrack ? new Track(currentTrack) : null), [currentTrack]);
+  const md = useMemo(() => (metadata ? new Metadata(metadata) : null), [metadata]);
   const [artist, setArtist] = useState();
   const [thumbUrl, setThumbUrl] = useState();
 
@@ -33,8 +33,8 @@ const PlayerBar = () => {
     }).catch(() => {});
   }, [currentTrack]);
 
-  // Hide the player bar when room is minimised and room floating bar is present.
-  if (!currentTrack || (roomId && minimised)) {
+  // Hide the player bar when in a party room or when no track is loaded
+  if (!currentTrack || roomId) {
     return null;
   }
 
@@ -59,15 +59,15 @@ const PlayerBar = () => {
   return (
     <Pressable onPress={handlePress} style={[styles.container, {borderColor: theme.colors.border, backgroundColor: theme.colors.surface}]}>
       <Image
-        source={{ uri: md.getThumb("mini")?.url || md.getThumb("medium")?.url }}
+        source={{ uri: md?.getThumb("mini")?.url || md?.getThumb("medium")?.url }}
         style={styles.image}
       />
       <View style={styles.textContainer}>
         <Text variant="titleMedium" style={[styles.title]} numberOfLines={1}>
-          {md.getTitle()}
+          {md?.getTitle?.() || ""}
         </Text>
         <Text variant="bodyMedium" style={[styles.artist]} numberOfLines={1}>
-          {md.getArtists()}
+          {md?.getArtists?.() || ""}
         </Text>
       </View>
       <Pressable onPress={togglePlayBack}>

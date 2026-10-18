@@ -6,6 +6,10 @@
  * module or opening a network connection.
  */
 
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
 jest.mock('react-native-track-player', () => {
   const TrackPlayer = {
     play: jest.fn().mockResolvedValue(undefined),
@@ -52,7 +56,7 @@ jest.mock('@/state/store', () => {
 });
 
 import TrackPlayer from 'react-native-track-player';
-import { socket } from '@/configs/socket';
+import { socket, emitWithAck } from '@/configs/socket';
 import { __state as state } from '@/state/store';
 import {
   roomOwnsAudio,
@@ -60,6 +64,7 @@ import {
   partyTogglePlayback,
   partyStep,
   partySeek,
+  handleVoiceRoomSongTap,
 } from '../partyPlayback.utils';
 
 const QUEUE = [
@@ -236,5 +241,37 @@ describe('after leaving the room', () => {
     expect(await partyTogglePlayback()).toBe(false);
     expect(await partyStep(1)).toBe(false);
     expect(await partySeek(10)).toBe(false);
+  });
+});
+
+describe('handleVoiceRoomSongTap', () => {
+  beforeEach(() => {
+    reset();
+    emitWithAck.mockReset();
+  });
+
+  it('returns false when outside a voice room so personal playback proceeds', async () => {
+    const res = await handleVoiceRoomSongTap({ videoId: 'song1', title: 'Test' }, false);
+    expect(res).toBe(false);
+    expect(emitWithAck).not.toHaveBeenCalled();
+  });
+
+  it('sends dj:request-add when tapped by a listener in a voice room', async () => {
+    joinRoom({ role: 'listener' });
+    emitWithAck.mockResolvedValueOnce({ success: true });
+
+    const res = await handleVoiceRoomSongTap(
+      { videoId: 'song1', title: 'Test Song', artists: 'Test Artist' },
+      false
+    );
+    expect(res).toBe(true);
+    expect(emitWithAck).toHaveBeenCalledWith(
+      'dj:request-add',
+      expect.objectContaining({
+        roomId: 'room1',
+        videoId: 'song1',
+        title: 'Test Song',
+      })
+    );
   });
 });

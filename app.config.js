@@ -32,6 +32,7 @@ module.exports = {
     android: {
       ...(base.android || {}),
       package: IS_DEV ? DEV_ANDROID_PACKAGE : PROD_ANDROID_PACKAGE,
+      googleServicesFile: process.env.GOOGLE_SERVICES_FILE || './google-services.json',
     },
     plugins: [...(base.plugins || []), './plugins/withAudioRoute.js'],
     // NOTE: `scheme` intentionally NOT varied. Clerk AuthSession

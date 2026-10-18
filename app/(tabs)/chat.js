@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   ScrollView,
@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
   BackHandler,
+  TextInput as RNTextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, useTheme, TextInput, Button, ActivityIndicator } from 'react-native-paper';
@@ -17,6 +18,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useUser } from '@clerk/clerk-expo';
+import { useIsFocused } from '@react-navigation/native';
+import { socket } from '@/configs/socket';
+import { setActiveChatId, markChatAsRead } from '@/services/chatStorage.service';
 
 import { useFriends } from '@/hooks/friends.hooks';
 
@@ -34,6 +38,9 @@ export default function ChatScreen() {
     respondRequest,
     activeChatFriend,
     chatMessages,
+    hasMoreOlder,
+    loadingOlder,
+    loadOlderMessages,
     openChat,
     closeChat,
     sendChatMessage,
@@ -47,22 +54,77 @@ export default function ChatScreen() {
   const [chatInputText, setChatInputText] = useState('');
   const [respondingId, setRespondingId] = useState(null);
 
-  // Scroll management
+  // Scroll & conversation state management
   const scrollViewRef = useRef(null);
   const isInitialLoadRef = useRef(true);
   const isNearBottomRef = useRef(true);
   const prevMessageCountRef = useRef(0);
+  const prevContentHeightRef = useRef(0);
+  const currentScrollYRef = useRef(0);
+  const lastMessageIdRef = useRef(null);
+  const wasLoadingOlderRef = useRef(false);
+  const handledParamFriendIdRef = useRef(null);
   const [showScrollBottomHint, setShowScrollBottomHint] = useState(false);
+
+  const handleCloseConversation = () => {
+    closeChat();
+    handledParamFriendIdRef.current = null;
+    if (paramFriendId) {
+      router.setParams({ friendId: '' });
+    }
+  };
+
+  const handleLoadOlder = async () => {
+    if (!hasMoreOlder || loadingOlder) return;
+    wasLoadingOlderRef.current = true;
+    try {
+      await loadOlderMessages();
+    } finally {
+      setTimeout(() => {
+        wasLoadingOlderRef.current = false;
+      }, 500);
+    }
+  };
 
   // Auto-open chat if navigated with friendId param
   useEffect(() => {
     if (paramFriendId && friends.length > 0) {
+      if (handledParamFriendIdRef.current === paramFriendId) return;
       const target = friends.find((f) => (f.friendId || f.id) === paramFriendId);
       if (target && (!activeChatFriend || (activeChatFriend.friendId || activeChatFriend.id) !== paramFriendId)) {
+        handledParamFriendIdRef.current = paramFriendId;
         openChat(target);
       }
     }
   }, [paramFriendId, friends, activeChatFriend, openChat]);
+
+  const isFocused = useIsFocused();
+
+  // Keep activeChatId synced with screen focus:
+  // When user switches away to another tab, activeChatId MUST be cleared so incoming messages
+  // are NOT falsely treated as "viewing conversation" and properly trigger unread badge & notification.
+  useEffect(() => {
+    if (isFocused && activeChatFriend) {
+      const friendId = activeChatFriend.friendId || activeChatFriend.id;
+      setActiveChatId(friendId);
+      markChatAsRead(friendId);
+      socket.emit('friend:read-receipt', { recipientId: friendId, readerId: user?.id });
+    } else {
+      setActiveChatId(null);
+    }
+  }, [isFocused, activeChatFriend, user?.id]);
+
+  // Real-time blue tick read receipts: whenever new messages arrive while this screen is focused
+  useEffect(() => {
+    if (isFocused && activeChatFriend && chatMessages.length > 0) {
+      const lastMsg = chatMessages[chatMessages.length - 1];
+      if (lastMsg && !lastMsg.isOutgoing) {
+        const friendId = activeChatFriend.friendId || activeChatFriend.id;
+        markChatAsRead(friendId);
+        socket.emit('friend:read-receipt', { recipientId: friendId, readerId: user?.id });
+      }
+    }
+  }, [chatMessages, isFocused, activeChatFriend, user?.id]);
 
   // Reset scroll flags when active chat changes
   useEffect(() => {
@@ -71,6 +133,8 @@ export default function ChatScreen() {
       isNearBottomRef.current = true;
       setShowScrollBottomHint(false);
       prevMessageCountRef.current = 0;
+      lastMessageIdRef.current = null;
+      wasLoadingOlderRef.current = false;
     }
   }, [activeChatFriend]);
 
@@ -83,13 +147,24 @@ export default function ChatScreen() {
 
     if (count === 0) return;
 
+    const lastMsg = chatMessages[count - 1];
+    const currentLastId = lastMsg?.uuid || lastMsg?._id || lastMsg?.id;
+    const isNewBottomMessage = Boolean(
+      lastMessageIdRef.current && currentLastId && lastMessageIdRef.current !== currentLastId
+    );
+    lastMessageIdRef.current = currentLastId;
+
     if (isInitialLoadRef.current) {
       // Handled by onContentSizeChange
       return;
     }
 
-    if (count > prevCount) {
-      const lastMsg = chatMessages[count - 1];
+    // If loading older messages (prepended to top), suppress auto-scroll and false new-message hint
+    if (wasLoadingOlderRef.current) {
+      return;
+    }
+
+    if (count > prevCount && isNewBottomMessage) {
       const isMe = lastMsg?.senderId === user?.id;
 
       if (isMe || isNearBottomRef.current) {
@@ -104,14 +179,20 @@ export default function ChatScreen() {
 
   // Android hardware back handler: return to chat list if conversation is open
   useEffect(() => {
-    if (!activeChatFriend) return;
     const handleHardwareBack = () => {
-      closeChat();
-      return true; // Consume event so it doesn't navigate back to home screen
+      if (activeChatFriend) {
+        handleCloseConversation();
+        return true; // Consume event so it doesn't navigate back to home screen
+      }
+      if (!router.canGoBack()) {
+        router.replace('/(tabs)/homeRoutes');
+        return true;
+      }
+      return false;
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', handleHardwareBack);
     return () => sub.remove();
-  }, [activeChatFriend, closeChat]);
+  }, [activeChatFriend, paramFriendId, closeChat]);
 
   // Handle responding to a friend request
   const handleResponse = async (friendshipId, action) => {
@@ -145,11 +226,15 @@ export default function ChatScreen() {
     await sendChatMessage(msg);
   };
 
-  const filteredFriends = friends.filter((f) =>
-    (f.name || '').toLowerCase().includes(searchQuery.toLowerCase().trim())
-  );
+  const filteredFriends = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return friends;
+    return friends.filter((f) => (f.name || '').toLowerCase().includes(q));
+  }, [friends, searchQuery]);
 
-  const liveFriends = friends.filter((f) => f.isLiveInRoom && f.roomInfo);
+  const liveFriends = useMemo(() => {
+    return friends.filter((f) => f.isLiveInRoom && f.roomInfo);
+  }, [friends]);
 
   const formatMsgTime = (timestamp) => {
     if (!timestamp) return '';
@@ -186,7 +271,7 @@ export default function ChatScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top', 'bottom']}>
         {/* Dedicated Chat Top Navigation Bar */}
         <View style={[styles.chatRoomHeader, { backgroundColor: theme.colors.elevation.level2 }]}>
-          <TouchableOpacity onPress={closeChat} style={styles.backButton} activeOpacity={0.7}>
+          <TouchableOpacity onPress={handleCloseConversation} style={styles.backButton} activeOpacity={0.7}>
             <Icon name="arrow-left" size={24} color={theme.colors.onSurface} />
           </TouchableOpacity>
 
@@ -234,15 +319,40 @@ export default function ChatScreen() {
             style={styles.chatRoomScroll}
             contentContainerStyle={styles.chatRoomScrollContent}
             showsVerticalScrollIndicator={false}
-            onContentSizeChange={() => {
+            refreshControl={
+              hasMoreOlder ? (
+                <RefreshControl
+                  refreshing={loadingOlder}
+                  onRefresh={handleLoadOlder}
+                  tintColor={theme.colors.primary}
+                  colors={[theme.colors.primary]}
+                />
+              ) : undefined
+            }
+            onContentSizeChange={(w, newHeight) => {
               if (isInitialLoadRef.current && chatMessages.length > 0) {
                 scrollViewRef.current?.scrollToEnd({ animated: false });
                 isInitialLoadRef.current = false;
+                prevContentHeightRef.current = newHeight;
+                return;
               }
+
+              if (wasLoadingOlderRef.current) {
+                const heightDiff = newHeight - prevContentHeightRef.current;
+                if (heightDiff > 0) {
+                  const targetY = currentScrollYRef.current + heightDiff;
+                  scrollViewRef.current?.scrollTo({ y: targetY, animated: false });
+                }
+                wasLoadingOlderRef.current = false;
+              } else if (isNearBottomRef.current) {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+              }
+              prevContentHeightRef.current = newHeight;
             }}
             onScroll={(e) => {
               const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-              const paddingToBottom = 70;
+              currentScrollYRef.current = contentOffset.y;
+              const paddingToBottom = 220;
               const isClose = contentSize.height - (layoutMeasurement.height + contentOffset.y) <= paddingToBottom;
               isNearBottomRef.current = isClose;
               if (isClose && showScrollBottomHint) {
@@ -251,13 +361,61 @@ export default function ChatScreen() {
             }}
             scrollEventThrottle={16}
           >
+            {/* Pull down / tap to load older messages indicator */}
+            {hasMoreOlder && (
+              <TouchableOpacity
+                style={styles.loadOlderBtn}
+                onPress={handleLoadOlder}
+                disabled={loadingOlder}
+                activeOpacity={0.7}
+              >
+                {loadingOlder ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Icon name="arrow-up-circle-outline" size={15} color="#9E9EA7" style={{ marginRight: 6 }} />
+                    <Text style={styles.loadOlderText}>Pull down or tap to load 10 older messages</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+
             {chatMessages.length === 0 ? (
               <View style={styles.chatEmptyBox}>
-                <Icon name="chat-processing-outline" size={48} color="#666666" />
-                <Text style={styles.chatEmptyTitle}>Device-First Direct Chat 🔒</Text>
+                <View style={styles.emptyIconCircle}>
+                  <Icon name="waveform" size={34} color="#E94057" />
+                </View>
+                <Text style={styles.chatEmptyTitle}>Start the Vibe ⚡</Text>
                 <Text style={styles.chatEmptySub}>
-                  Messages are stored securely on your device. Send a message to start vibing and earn mutual synergy points!
+                  End-to-end device storage. Send a message to start vibing and earn +5 mutual synergy points!
                 </Text>
+
+                <View style={styles.quickChipsWrapper}>
+                  <Text style={styles.quickChipsLabel}>QUICK PROMPTS</Text>
+                  <View style={styles.quickChipsRow}>
+                    <TouchableOpacity
+                      style={styles.quickChip}
+                      onPress={() => setChatInputText('🎵 What are you listening to right now?')}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.quickChipText}>🎵 What are you listening to?</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.quickChip}
+                      onPress={() => setChatInputText("🚀 Let's jam together in a party room!")}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.quickChipText}>🚀 Let's jam together</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.quickChip}
+                      onPress={() => setChatInputText('✨ Vibe check (+5 synergy points)')}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.quickChipText}>✨ Vibe check (+5 synergy)</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
             ) : (
               chatMessages.map((msg, idx) => {
@@ -306,24 +464,35 @@ export default function ChatScreen() {
                   );
                 }
 
+                if (isMe) {
+                  return (
+                    <View key={msg._id || idx} style={styles.chatBubbleMeContainer}>
+                      <LinearGradient
+                        colors={['#8A2387', '#E94057']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.chatBubbleGradientMe}
+                      >
+                        <Text style={styles.chatBubbleTextMe}>{msg.message}</Text>
+                        <View style={styles.bubbleMetaMe}>
+                          <Text style={styles.bubbleTimeMe}>{formatMsgTime(msg.createdAt)}</Text>
+                          {renderStatusTick(msg)}
+                        </View>
+                      </LinearGradient>
+                    </View>
+                  );
+                }
+
                 return (
                   <View
                     key={msg._id || idx}
-                    style={[
-                      styles.chatBubble,
-                      isMe
-                        ? [styles.chatBubbleMe, { backgroundColor: theme.colors.primary }]
-                        : [styles.chatBubbleOther, { backgroundColor: theme.colors.elevation.level2 }],
-                    ]}
+                    style={[styles.chatBubbleOther, { backgroundColor: theme.colors.elevation.level2 }]}
                   >
-                    <Text style={[styles.chatBubbleText, isMe && { color: '#FFFFFF' }]}>
+                    <Text style={[styles.chatBubbleTextOther, { color: theme.colors.onSurface }]}>
                       {msg.message}
                     </Text>
-                    <View style={[styles.bubbleMetaRow, isMe ? styles.bubbleMetaMe : styles.bubbleMetaOther]}>
-                      <Text style={[styles.bubbleTimeText, isMe ? styles.bubbleTimeMe : styles.bubbleTimeOther]}>
-                        {formatMsgTime(msg.createdAt)}
-                      </Text>
-                      {isMe && renderStatusTick(msg)}
+                    <View style={styles.bubbleMetaOther}>
+                      <Text style={styles.bubbleTimeOther}>{formatMsgTime(msg.createdAt)}</Text>
                     </View>
                   </View>
                 );
@@ -348,25 +517,43 @@ export default function ChatScreen() {
             </View>
           )}
 
-          {/* Chat Message Input Bar */}
-          <View style={[styles.chatRoomInputRow, { backgroundColor: theme.colors.elevation.level1 }]}>
-            <TextInput
-              placeholder="Message friend (+5 synergy)..."
-              value={chatInputText}
-              onChangeText={setChatInputText}
-              mode="outlined"
-              dense
-              style={{ flex: 1, marginRight: 8, backgroundColor: theme.colors.background }}
-            />
-            <Button
-              mode="contained"
-              onPress={handleSendMessage}
-              loading={sendingMsg}
-              disabled={sendingMsg || !chatInputText.trim()}
-              style={{ borderRadius: 10 }}
-            >
-              Send
-            </Button>
+          {/* Chat Message Input Bar - Modern Floating Capsule */}
+          <View style={[styles.chatInputCapsuleWrapper, { backgroundColor: theme.colors.background }]}>
+            <View style={[styles.chatInputCapsule, { backgroundColor: theme.colors.elevation.level2 }]}>
+              <RNTextInput
+                placeholder="Message friend (+5 synergy)..."
+                placeholderTextColor="#7E7E8F"
+                value={chatInputText}
+                onChangeText={setChatInputText}
+                style={[styles.chatNativeInput, { color: theme.colors.onSurface }]}
+                multiline
+                maxLength={1000}
+              />
+              <TouchableOpacity
+                style={styles.sendCapsuleBtn}
+                onPress={handleSendMessage}
+                disabled={sendingMsg || !chatInputText.trim()}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={chatInputText.trim() ? ['#8A2387', '#E94057'] : ['#2A2A38', '#2A2A38']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.sendGradientCircle}
+                >
+                  {sendingMsg ? (
+                    <ActivityIndicator size={14} color="#FFFFFF" />
+                  ) : (
+                    <Icon
+                      name="send"
+                      size={15}
+                      color={chatInputText.trim() ? '#FFFFFF' : '#6A6A7D'}
+                      style={{ marginLeft: 2 }}
+                    />
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -1025,47 +1212,137 @@ const styles = StyleSheet.create({
   },
   chatEmptyBox: {
     alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 24,
+    paddingVertical: 36,
+    paddingHorizontal: 20,
+  },
+  emptyIconCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(233, 64, 87, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(233, 64, 87, 0.25)',
   },
   chatEmptyTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
     color: '#FFFFFF',
-    marginTop: 10,
+    marginBottom: 6,
   },
   chatEmptySub: {
     fontSize: 13,
-    color: '#888888',
+    color: '#8E8E9F',
     textAlign: 'center',
-    marginTop: 6,
     lineHeight: 18,
+    marginBottom: 20,
+    maxWidth: 280,
   },
-  chatBubble: {
+  quickChipsWrapper: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  quickChipsLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#6E6E82',
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  quickChipsRow: {
+    flexDirection: 'column',
+    gap: 8,
+    width: '100%',
+    alignItems: 'center',
+  },
+  quickChip: {
+    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    width: '90%',
+    alignItems: 'center',
+  },
+  quickChipText: {
+    color: '#E0E0EC',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  chatBubbleMeContainer: {
+    alignSelf: 'flex-end',
     maxWidth: '82%',
+    marginVertical: 3,
+    borderRadius: 18,
+    borderBottomRightRadius: 4,
+    overflow: 'hidden',
+    shadowColor: '#8A2387',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  chatBubbleGradientMe: {
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 16,
   },
-  chatBubbleMe: {
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 2,
+  chatBubbleTextMe: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
   },
   chatBubbleOther: {
     alignSelf: 'flex-start',
-    borderBottomLeftRadius: 2,
+    maxWidth: '82%',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+    marginVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
-  chatBubbleText: {
+  chatBubbleTextOther: {
     fontSize: 14,
-    lineHeight: 19,
+    lineHeight: 20,
   },
-  chatRoomInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  chatInputCapsuleWrapper: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  chatInputCapsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 24,
+    paddingLeft: 16,
+    paddingRight: 6,
+    paddingVertical: 5,
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  chatNativeInput: {
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 4,
+    maxHeight: 100,
+  },
+  sendCapsuleBtn: {
+    marginLeft: 6,
+  },
+  sendGradientCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // ---------------- Clickable Jam Invite Card Styles ----------------
@@ -1188,5 +1465,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
+  },
+  loadOlderBtn: {
+    alignSelf: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    marginBottom: 10,
+  },
+  loadOlderText: {
+    color: '#A0A0B0',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { AppState } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import { useRouter } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { socket, ensureSocketConnected } from '@/configs/socket';
 import { sweepMessagesApi, ackMessagesApi } from '@/services/friend.service';
+import { registerPushNotifications } from '@/services/notification.service';
 import {
   saveMessageLocally,
   markOutgoingMessagesAsDelivered,
@@ -12,12 +15,50 @@ import {
 } from '@/services/chatStorage.service';
 
 export default function GlobalChatManager() {
+  const router = useRouter();
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
   const userIdRef = useRef(user?.id);
   userIdRef.current = user?.id;
+
+  // Register push notifications (FCM & background task)
+  useEffect(() => {
+    if (isSignedIn) {
+      (async () => {
+        try {
+          const token = getTokenRef.current ? await getTokenRef.current() : null;
+          await registerPushNotifications(token);
+        } catch (e) {}
+      })();
+    }
+  }, [isSignedIn]);
+
+  // Handle system notification tap (when user taps background notification)
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      try {
+        const rawData = response?.notification?.request?.content?.data;
+        if (!rawData) return;
+        let data = rawData;
+        if (typeof rawData.payload === 'string') {
+          try {
+            data = JSON.parse(rawData.payload);
+          } catch (e) {}
+        }
+        if (data.roomId) {
+          router.push({ pathname: 'voiceRoom', params: { roomId: String(data.roomId) } });
+        } else if (data.senderId) {
+          router.push({ pathname: '/(tabs)/chat', params: { friendId: String(data.senderId) } });
+        }
+      } catch (err) {
+        console.warn('[GlobalChatManager] Error handling notification response:', err);
+      }
+    });
+
+    return () => sub.remove();
+  }, [router]);
 
   // Process swept messages from Redis inbox, write to local device DB, and ACK to purge from Upstash
   const processSweptMessages = useCallback(async (messages) => {
@@ -36,7 +77,16 @@ export default function GlobalChatManager() {
       await saveMessageLocally(friendId, { ...msg, read: isChatOpen }, msg.senderId === myId);
 
       const uuid = msg.uuid || msg._id;
-      if (uuid) writtenUuids.push(uuid);
+      if (uuid) {
+        writtenUuids.push(uuid);
+        if (msg.senderId && msg.senderId !== myId) {
+          socket.emit('friend:delivered', { senderId: msg.senderId, messageUuids: [uuid] });
+          if (isChatOpen) {
+            markChatAsRead(friendId);
+            socket.emit('friend:read-receipt', { recipientId: msg.senderId, readerId: myId });
+          }
+        }
+      }
     }
 
     // Ack & Purge Phase: erase specific messages from Upstash Redis
@@ -91,28 +141,60 @@ export default function GlobalChatManager() {
       // 2. Ack & Purge from Upstash Redis
       const uuid = msg.uuid || msg._id;
       if (uuid) {
-        socket.emit('ack_messages', { messageUuids: [uuid] });
+        socket.emit('ack_messages', { messageUuids: [uuid], senderId });
         socket.emit('friend:delivered', { senderId, messageUuids: [uuid] });
       }
 
-      // 3. Trigger Global In-App Notification Toast if user is NOT currently inside active conversation
-      if (!isChatOpen) {
-        const isInvite = msg.type === 'jam_invite' || Boolean(msg.roomId);
-        emitGlobalChatNotification({
-          type: isInvite ? 'jam_invite' : 'message',
-          title: isInvite ? 'Party Room Invite 🎧' : `${msg.senderName || 'New Message'} 💬`,
-          message: msg.message,
-          senderId,
-          roomId: msg.roomId,
-          roomTitle: msg.roomTitle,
-        });
+      const isInvite = msg.type === 'jam_invite' || Boolean(msg.roomId);
+      const senderName = msg.senderName || 'Your friend';
+      const notifTitle = isInvite ? `${senderName} invited you 🎧` : `${senderName} 💬`;
+      const notifBody = msg.message || (isInvite ? 'Live Jam Room Invite' : 'New message');
+
+      // 3. IF CHAT IS CURRENTLY OPEN WITH THIS FRIEND:
+      if (isChatOpen) {
+        // User is viewing the conversation! Mark read and notify sender immediately (blue tick)
+        await markChatAsRead(senderId);
+        socket.emit('friend:read-receipt', { recipientId: senderId, readerId: myId });
+      } else {
+        // 4. CHAT IS NOT OPEN: Show notification based on AppState
+        if (AppState.currentState !== 'active') {
+          // App is minimised / in background: present system tray notification
+          try {
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: notifTitle,
+                body: notifBody,
+                data: {
+                  senderId: String(senderId),
+                  senderName,
+                  roomId: msg.roomId ? String(msg.roomId) : '',
+                  messageUuid: String(uuid || ''),
+                },
+                sound: 'default',
+              },
+              trigger: null,
+            });
+          } catch (notifErr) {
+            console.warn('[GlobalChatManager] Error presenting background notification:', notifErr);
+          }
+        } else {
+          // App is in foreground: show global floating in-app banner
+          emitGlobalChatNotification({
+            type: isInvite ? 'jam_invite' : 'message',
+            title: notifTitle,
+            message: notifBody,
+            senderId,
+            roomId: msg.roomId,
+            roomTitle: msg.roomTitle,
+          });
+        }
       }
     };
 
     const handleMessageSent = async (msg) => {
       if (!alive || !msg) return;
       const recipientId = msg.recipientId;
-      await saveMessageLocally(recipientId, { ...msg, read: true, status: msg.status || 'delivered' }, true);
+      await saveMessageLocally(recipientId, { ...msg, read: true, status: msg.status || 'sent' }, true);
     };
 
     const handleMessagesRead = async ({ readerId }) => {
@@ -125,14 +207,32 @@ export default function GlobalChatManager() {
       await markOutgoingMessagesAsDelivered(recipientId, messageUuids);
     };
 
-    const handleRequestReceived = (req) => {
+    const handleRequestReceived = async (req) => {
       if (!alive || !req) return;
-      emitGlobalChatNotification({
-        type: 'friend_request',
-        title: 'New Friend Request 🤝',
-        message: `${req?.requesterName || 'A listener'} wants to connect and jam!`,
-        requesterId: req?.requesterId,
-      });
+      const requesterName = req?.requesterName || 'A listener';
+      const notifTitle = `${requesterName} 🤝`;
+      const notifBody = 'Sent you a friend request to vibe together';
+
+      if (AppState.currentState !== 'active') {
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: notifTitle,
+              body: notifBody,
+              data: { requesterId: req?.requesterId },
+              sound: 'default',
+            },
+            trigger: null,
+          });
+        } catch (e) {}
+      } else {
+        emitGlobalChatNotification({
+          type: 'friend_request',
+          title: notifTitle,
+          message: notifBody,
+          requesterId: req?.requesterId,
+        });
+      }
     };
 
     const handleSweepResponse = (data) => {
