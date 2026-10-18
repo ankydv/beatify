@@ -1,9 +1,26 @@
-import { Link, Stack } from 'expo-router';
+import { useEffect } from 'react';
+import { Link, Stack, useRouter } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
+import store from '@/state/store';
 
 export default function NotFoundScreen() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // If arriving from an external deep link/intent, recover immediately
+    try {
+      const state = store.getState();
+      const activeRoomId = state?.party?.roomId;
+      if (activeRoomId) {
+        router.replace({ pathname: '/voiceRoom', params: { roomId: activeRoomId } });
+      } else if (state?.audio?.currentTrack || state?.audio?.metadata) {
+        router.replace('/player');
+      }
+    } catch (e) {}
+  }, [router]);
+
   return (
     <>
       <Stack.Screen options={{ title: 'Oops!' }} />

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Image, StyleSheet, Animated } from "react-native";
+import { View, Image, StyleSheet, Animated, BackHandler } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import MusicList from "@/components/MusicList";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
@@ -52,6 +52,15 @@ const AlbumScreen = () => {
       router.back();
     }
   };
+
+  useEffect(() => {
+    const onHardwareBack = () => {
+      handleBack();
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+    return () => sub.remove();
+  }, [navigation]);
 
   if (!album) {
     return <LoadingIndicator />;

@@ -39,7 +39,7 @@ const SearchResults = ({ results, onViewAll, activeFilter = "all" }) => {
   if (!results || results.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Icon name="music-box-search-outline" size={56} color="#888888" style={{ marginBottom: 12 }} />
+        <Icon name="music-box-outline" size={56} color="#888888" style={{ marginBottom: 12 }} />
         <Text variant="titleMedium" style={styles.emptyTitle}>
           Search for music, artists, albums & playlists
         </Text>

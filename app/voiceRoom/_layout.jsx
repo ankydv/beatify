@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { socket } from '@/configs/socket';
 import LoadingIndicator from '@/components/LoadingIndicator';
@@ -45,6 +45,7 @@ const AVATAR = 44;
  */
 const PartyRoom = () => {
   const dispatch = useDispatch();
+  const navigation = useNavigation();
   const { roomId } = useLocalSearchParams();
   const party = useSelector((s) => s.party);
   const { muted, toggleMute, react } = usePartyPresence();
@@ -62,23 +63,30 @@ const PartyRoom = () => {
   }, [dispatch, roomId]);
 
   // Hardware back minimises the room; leaving is an explicit action.
+  const minimize = () => {
+    dispatch(setMinimised(true));
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
+
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      dispatch(setMinimised(true));
-      router.back();
+      minimize();
       return true;
     });
     return () => sub.remove();
-  }, [dispatch]);
-
-  const minimize = () => {
-    dispatch(setMinimised(true));
-    router.back();
-  };
+  }, [dispatch, navigation]);
 
   const leave = () => {
     dispatch(resetParty());
-    router.back();
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      router.replace('/(tabs)');
+    }
   };
 
   const onSelectReaction = (emoji) => {

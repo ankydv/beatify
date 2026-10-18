@@ -16,6 +16,9 @@ import {
   getUnreadCounts,
   markChatAsRead,
   subscribeToChatUpdates,
+  setActiveChatId,
+  markOutgoingMessagesAsDelivered,
+  markOutgoingMessagesAsSeen,
 } from '@/services/chatStorage.service';
 import { socket, ensureSocketConnected } from '@/configs/socket';
 
@@ -181,6 +184,9 @@ export const useFriends = () => {
       if (!alive || !msg) return;
 
       const senderId = msg.senderId;
+      // If the message is from myself, do not duplicate as incoming
+      if (senderId && user?.id && senderId === user.id) return;
+
       const currentActiveId = activeChatFriendRef.current?.friendId || activeChatFriendRef.current?.id;
       const isChatOpen = currentActiveId === senderId;
 
@@ -194,7 +200,11 @@ export const useFriends = () => {
       }
 
       if (isChatOpen) {
-        setChatMessages((prev) => [...prev, msg]);
+        setChatMessages((prev) => {
+          const incomingId = msg.uuid || msg._id;
+          if (prev.some((m) => (m.uuid || m._id) === incomingId)) return prev;
+          return [...prev, msg];
+        });
       } else {
         // Trigger in-app notification banner
         const isInvite = msg.type === 'jam_invite' || Boolean(msg.roomId);
@@ -282,9 +292,24 @@ export const useFriends = () => {
     return res;
   };
 
+  // Sync open conversation messages whenever chat storage updates
+  useEffect(() => {
+    if (!activeChatFriend) return;
+    const friendId = activeChatFriend.friendId || activeChatFriend.id;
+    const syncConversation = async () => {
+      const msgs = await getLocalMessages(friendId);
+      setChatMessages(msgs);
+    };
+    const unsub = subscribeToChatUpdates(syncConversation);
+    return () => {
+      unsub();
+    };
+  }, [activeChatFriend]);
+
   // Open dedicated chat with friend
   const openChat = async (friend) => {
     const friendId = friend.friendId || friend.id;
+    setActiveChatId(friendId);
     setActiveChatFriend(friend);
 
     // 1. Immediately load local messages from device
@@ -294,9 +319,15 @@ export const useFriends = () => {
     // 2. Mark chat as read
     await markChatAsRead(friendId);
     syncUnreadCounts();
+
+    // 3. Emit read receipt to sender over socket
+    try {
+      socket.emit('friend:read-receipt', { recipientId: friendId });
+    } catch (e) {}
   };
 
   const closeChat = () => {
+    setActiveChatId(null);
     setActiveChatFriend(null);
     setChatMessages([]);
   };
@@ -317,11 +348,17 @@ export const useFriends = () => {
       type: 'text',
       createdAt: new Date().toISOString(),
       read: true,
+      isOutgoing: true,
+      status: 'sending',
     };
 
     // Save locally immediately
     await saveMessageLocally(friendId, localMsg, true);
-    setChatMessages((prev) => [...prev, localMsg]);
+    setChatMessages((prev) => {
+      const incomingId = localMsg.uuid || localMsg._id;
+      if (prev.some((m) => (m.uuid || m._id) === incomingId)) return prev;
+      return [...prev, localMsg];
+    });
 
     try {
       const token = getTokenRef.current ? await getTokenRef.current() : null;
@@ -333,6 +370,8 @@ export const useFriends = () => {
         saveToCloud: false, // Default device-only
         token,
       });
+      // Mark as sent in local storage
+      await markOutgoingMessagesAsDelivered(friendId, [msgUuid]);
       fetchFriends();
     } catch (e) {
       console.warn('Failed to send message:', e);
@@ -360,6 +399,8 @@ export const useFriends = () => {
         roomTitle: roomTitle || `Party Room #${roomId}`,
         createdAt: new Date().toISOString(),
         read: true,
+        isOutgoing: true,
+        status: 'sent',
       };
 
       // Save locally
@@ -368,7 +409,11 @@ export const useFriends = () => {
       // If this friend's chat is open, update timeline
       const currentActiveId = activeChatFriendRef.current?.friendId || activeChatFriendRef.current?.id;
       if (currentActiveId === recipientId) {
-        setChatMessages((prev) => [...prev, localMsg]);
+        setChatMessages((prev) => {
+          const incomingId = localMsg.uuid || localMsg._id;
+          if (prev.some((m) => (m.uuid || m._id) === incomingId)) return prev;
+          return [...prev, localMsg];
+        });
       }
 
       await apiSendMessage({

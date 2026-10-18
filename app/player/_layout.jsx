@@ -2,11 +2,12 @@ import React, { useEffect, useState } from "react";
 import {
   View,
   StyleSheet,
+  BackHandler,
 } from "react-native";
 import { AntDesign, Entypo } from "@expo/vector-icons";
 import Metadata from "@/utils/metadata.utils";
 import { useSelector } from "react-redux";
-import { useNavigation } from "expo-router";
+import { useNavigation, useRouter } from "expo-router";
 import Main from "./Main";
 import Queue from "./Queue";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,6 +21,7 @@ const Player = () => {
   const { metadata } = useSelector((state) => state.audio);
   const md = new Metadata(metadata);
   const navigation = useNavigation();
+  const router = useRouter();
 
   useEffect(() => {
     navigation.setOptions({
@@ -31,10 +33,23 @@ const Player = () => {
     if (isQueueVisible) {
       setIsQueueVisible(false);
     } else {
-      setIsFullScreen(!isFullScreen);
-      navigation.goBack();
+      setIsFullScreen(false);
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        router.replace("/(tabs)");
+      }
     }
   };
+
+  useEffect(() => {
+    const onHardwareBack = () => {
+      toggleScreen();
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+    return () => sub.remove();
+  }, [isQueueVisible, navigation]);
   const img = md.getThumb("medium");
 
   return (

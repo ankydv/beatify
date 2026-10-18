@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   ScrollView,
@@ -9,18 +9,20 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, useTheme, TextInput, Button, ActivityIndicator } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useUser } from '@clerk/clerk-expo';
 
 import { useFriends } from '@/hooks/friends.hooks';
 
 export default function ChatScreen() {
   const router = useRouter();
+  const { friendId: paramFriendId } = useLocalSearchParams();
   const theme = useTheme();
   const { user } = useUser();
 
@@ -39,13 +41,77 @@ export default function ChatScreen() {
     sendingMsg,
     unreadCounts,
     totalUnreadCount,
-    incomingNotification,
-    dismissNotification,
   } = useFriends();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [chatInputText, setChatInputText] = useState('');
   const [respondingId, setRespondingId] = useState(null);
+
+  // Scroll management
+  const scrollViewRef = useRef(null);
+  const isInitialLoadRef = useRef(true);
+  const isNearBottomRef = useRef(true);
+  const prevMessageCountRef = useRef(0);
+  const [showScrollBottomHint, setShowScrollBottomHint] = useState(false);
+
+  // Auto-open chat if navigated with friendId param
+  useEffect(() => {
+    if (paramFriendId && friends.length > 0) {
+      const target = friends.find((f) => (f.friendId || f.id) === paramFriendId);
+      if (target && (!activeChatFriend || (activeChatFriend.friendId || activeChatFriend.id) !== paramFriendId)) {
+        openChat(target);
+      }
+    }
+  }, [paramFriendId, friends, activeChatFriend, openChat]);
+
+  // Reset scroll flags when active chat changes
+  useEffect(() => {
+    if (activeChatFriend) {
+      isInitialLoadRef.current = true;
+      isNearBottomRef.current = true;
+      setShowScrollBottomHint(false);
+      prevMessageCountRef.current = 0;
+    }
+  }, [activeChatFriend]);
+
+  // Handle auto-scroll or show "New messages below" hint
+  useEffect(() => {
+    if (!activeChatFriend) return;
+    const count = chatMessages.length;
+    const prevCount = prevMessageCountRef.current;
+    prevMessageCountRef.current = count;
+
+    if (count === 0) return;
+
+    if (isInitialLoadRef.current) {
+      // Handled by onContentSizeChange
+      return;
+    }
+
+    if (count > prevCount) {
+      const lastMsg = chatMessages[count - 1];
+      const isMe = lastMsg?.senderId === user?.id;
+
+      if (isMe || isNearBottomRef.current) {
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 60);
+      } else {
+        setShowScrollBottomHint(true);
+      }
+    }
+  }, [chatMessages, activeChatFriend, user?.id]);
+
+  // Android hardware back handler: return to chat list if conversation is open
+  useEffect(() => {
+    if (!activeChatFriend) return;
+    const handleHardwareBack = () => {
+      closeChat();
+      return true; // Consume event so it doesn't navigate back to home screen
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', handleHardwareBack);
+    return () => sub.remove();
+  }, [activeChatFriend, closeChat]);
 
   // Handle responding to a friend request
   const handleResponse = async (friendshipId, action) => {
@@ -84,6 +150,30 @@ export default function ChatScreen() {
   );
 
   const liveFriends = friends.filter((f) => f.isLiveInRoom && f.roomInfo);
+
+  const formatMsgTime = (timestamp) => {
+    if (!timestamp) return '';
+    try {
+      const d = new Date(timestamp);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const renderStatusTick = (msg) => {
+    const status = msg.status || (msg.read ? 'seen' : 'sent');
+    if (status === 'sending') {
+      return <Icon name="clock-outline" size={11} color="rgba(255,255,255,0.6)" style={styles.statusTick} />;
+    }
+    if (status === 'seen') {
+      return <Icon name="check-all" size={13} color="#00E5FF" style={styles.statusTick} />;
+    }
+    if (status === 'delivered') {
+      return <Icon name="check-all" size={13} color="rgba(255,255,255,0.85)" style={styles.statusTick} />;
+    }
+    return <Icon name="check" size={12} color="rgba(255,255,255,0.7)" style={styles.statusTick} />;
+  };
 
   // -------------------------------------------------------------
   // DEDICATED FULL-SCREEN CHAT CONVERSATION VIEW (NOT A MODAL)
@@ -140,9 +230,26 @@ export default function ChatScreen() {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
           <ScrollView
+            ref={scrollViewRef}
             style={styles.chatRoomScroll}
             contentContainerStyle={styles.chatRoomScrollContent}
             showsVerticalScrollIndicator={false}
+            onContentSizeChange={() => {
+              if (isInitialLoadRef.current && chatMessages.length > 0) {
+                scrollViewRef.current?.scrollToEnd({ animated: false });
+                isInitialLoadRef.current = false;
+              }
+            }}
+            onScroll={(e) => {
+              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+              const paddingToBottom = 70;
+              const isClose = contentSize.height - (layoutMeasurement.height + contentOffset.y) <= paddingToBottom;
+              isNearBottomRef.current = isClose;
+              if (isClose && showScrollBottomHint) {
+                setShowScrollBottomHint(false);
+              }
+            }}
+            scrollEventThrottle={16}
           >
             {chatMessages.length === 0 ? (
               <View style={styles.chatEmptyBox}>
@@ -189,6 +296,11 @@ export default function ChatScreen() {
                           <Text style={styles.inviteJoinButtonText}>Join Jam Room 🚀</Text>
                           <Icon name="arrow-right-circle" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
                         </TouchableOpacity>
+
+                        <View style={styles.inviteMetaRow}>
+                          <Text style={styles.inviteTimeText}>{formatMsgTime(msg.createdAt)}</Text>
+                          {isMe && renderStatusTick(msg)}
+                        </View>
                       </LinearGradient>
                     </View>
                   );
@@ -207,11 +319,34 @@ export default function ChatScreen() {
                     <Text style={[styles.chatBubbleText, isMe && { color: '#FFFFFF' }]}>
                       {msg.message}
                     </Text>
+                    <View style={[styles.bubbleMetaRow, isMe ? styles.bubbleMetaMe : styles.bubbleMetaOther]}>
+                      <Text style={[styles.bubbleTimeText, isMe ? styles.bubbleTimeMe : styles.bubbleTimeOther]}>
+                        {formatMsgTime(msg.createdAt)}
+                      </Text>
+                      {isMe && renderStatusTick(msg)}
+                    </View>
                   </View>
                 );
               })
             )}
           </ScrollView>
+
+          {/* Floating "New messages below" Hint Button */}
+          {showScrollBottomHint && (
+            <View style={styles.floatingHintWrapper} pointerEvents="box-none">
+              <TouchableOpacity
+                style={styles.floatingHintBtn}
+                onPress={() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                  setShowScrollBottomHint(false);
+                }}
+                activeOpacity={0.85}
+              >
+                <Icon name="arrow-down" size={15} color="#FFFFFF" style={{ marginRight: 5 }} />
+                <Text style={styles.floatingHintText}>New messages below</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Chat Message Input Bar */}
           <View style={[styles.chatRoomInputRow, { backgroundColor: theme.colors.elevation.level1 }]}>
@@ -243,43 +378,6 @@ export default function ChatScreen() {
   // -------------------------------------------------------------
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-      {/* ---------------- In-App Floating Notification Banner ---------------- */}
-      {incomingNotification && (
-        <View style={styles.notificationToastWrapper}>
-          <TouchableOpacity
-            style={styles.notificationToast}
-            onPress={() => {
-              const notif = incomingNotification;
-              dismissNotification();
-              if (notif.roomId) {
-                handleFollowRoom(notif.roomId);
-              } else if (notif.senderId) {
-                const target = friends.find((f) => f.friendId === notif.senderId);
-                if (target) openChat(target);
-              }
-            }}
-            activeOpacity={0.9}
-          >
-            <View style={styles.toastIconBox}>
-              <Icon
-                name={incomingNotification.type === 'jam_invite' ? 'music-circle' : 'message-text'}
-                size={22}
-                color="#FFFFFF"
-              />
-            </View>
-            <View style={{ flex: 1, marginHorizontal: 10 }}>
-              <Text style={styles.toastTitle}>{incomingNotification.title}</Text>
-              <Text style={styles.toastMessage} numberOfLines={1}>
-                {incomingNotification.message}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={dismissNotification} style={{ padding: 4 }}>
-              <Icon name="close" size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {/* ---------------- Top Header ---------------- */}
       <View style={styles.header}>
         <View>
@@ -1027,45 +1125,68 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 13,
   },
-
-  // ---------------- Floating Toast Notification Styles ----------------
-  notificationToastWrapper: {
-    position: 'absolute',
-    top: 50,
-    left: 14,
-    right: 14,
-    zIndex: 9999,
-    elevation: 10,
-  },
-  notificationToast: {
+  bubbleMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E1B2E',
-    borderWidth: 1,
-    borderColor: '#E94057',
-    padding: 12,
-    borderRadius: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
+    marginTop: 4,
+    gap: 4,
   },
-  toastIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#E94057',
+  bubbleMetaMe: {
+    alignSelf: 'flex-end',
+    justifyContent: 'flex-end',
+  },
+  bubbleMetaOther: {
+    alignSelf: 'flex-start',
+    justifyContent: 'flex-start',
+  },
+  bubbleTimeText: {
+    fontSize: 10,
+    lineHeight: 12,
+  },
+  bubbleTimeMe: {
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  bubbleTimeOther: {
+    color: '#8E8E93',
+  },
+  statusTick: {
+    marginLeft: 2,
+  },
+  inviteMetaRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+    gap: 4,
   },
-  toastTitle: {
+  inviteTimeText: {
+    color: 'rgba(255, 255, 255, 0.75)',
+    fontSize: 10,
+  },
+  floatingHintWrapper: {
+    position: 'absolute',
+    bottom: 60,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 99,
+  },
+  floatingHintBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E94057',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  floatingHintText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  toastMessage: {
-    color: '#DDDDDD',
     fontSize: 12,
-    marginTop: 2,
+    fontWeight: '700',
   },
 });

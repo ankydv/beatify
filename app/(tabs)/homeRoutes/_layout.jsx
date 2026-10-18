@@ -7,6 +7,7 @@ const index = () => {
     <Stack>
       <Stack.Screen name="Home" options={{ headerShown: false }} />
       <Stack.Screen name="Album" options={{ headerShown: false }} />
+      <Stack.Screen name="playlist" options={{ headerShown: false }} />
     </Stack>
   );
 };

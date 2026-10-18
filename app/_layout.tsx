@@ -13,6 +13,8 @@ import { Provider } from 'react-redux';
 import EventListeners from './EventListeners'
 import GlobalModal from '../components/GlobalModal';
 import PartyHost from '../components/PartyHost';
+import GlobalChatManager from '../components/GlobalChatManager';
+import GlobalChatNotification from '../components/GlobalChatNotification';
 import { StatusBar } from 'expo-status-bar';
 import { PaperProvider, Text, Title, adaptNavigationTheme, useTheme } from 'react-native-paper';
 import { ClerkProvider } from '@clerk/clerk-expo'
@@ -99,7 +101,9 @@ function RootLayoutNav() {
               <Stack.Screen name="player" options={{ headerShown: false }} />
               <Stack.Screen name="voiceRoom" options={{ headerShown: false }} />
               <Stack.Screen name="album" options={{ headerShown: false }} />
+              <Stack.Screen name="playlist" options={{ headerShown: false }} />
               <Stack.Screen name="artist" options={{ headerShown: false }} />
+              <Stack.Screen name="notification.click" options={{ headerShown: false }} />
               <Stack.Screen name="updater" options={{ headerShown: false }} />
               <Stack.Screen name="addToPlaylist" options={{ headerShown: true, title: "Add To Playlists",
                  presentation: "modal", // makes it slide up like a modal
@@ -112,6 +116,8 @@ function RootLayoutNav() {
                 minimise the room instead of leaving it. */}
             <PartyHost />
             <GlobalModal />
+            <GlobalChatManager />
+            <GlobalChatNotification />
           </ThemeProvider>
         </PaperProvider>
       </Provider>

@@ -20,10 +20,10 @@ const Playlists = () => {
 
   const handlePress = (playlistId) => {
     router.push({
-        pathname: "/(tabs)/homeRoutes/Album",
-        params: { id: playlistId, isPlaylist: true, isUserPlaylist: true }, 
-      });
-  }
+      pathname: "/playlist",
+      params: { id: playlistId, isPlaylist: true, isUserPlaylist: true },
+    });
+  };
 
   const renderPlaylistItem = ({ item }) => (
     <Surface

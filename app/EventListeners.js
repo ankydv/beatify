@@ -36,7 +36,7 @@ const EventListeners = () => {
         router.replace("/(tabs)/library");
         return;
       }
-      if (url === "trackplayer://notification.click") {
+      if (url === "trackplayer://notification.click" || url.includes("notification.click")) {
         try {
           const state = store.getState();
           const activeRoomId = state?.party?.roomId;
@@ -46,11 +46,19 @@ const EventListeners = () => {
           if (activeRoomId) {
             store.dispatch(setMinimised(false));
             if (currentRouteName !== "voiceRoom") {
-              router.push({ pathname: "/voiceRoom", params: { roomId: activeRoomId } });
+              if (currentRouteName === "+not-found" || !navigation.canGoBack()) {
+                router.replace({ pathname: "/voiceRoom", params: { roomId: activeRoomId } });
+              } else {
+                router.push({ pathname: "/voiceRoom", params: { roomId: activeRoomId } });
+              }
             }
           } else {
             if (currentRouteName !== "player") {
-              router.push("/player");
+              if (currentRouteName === "+not-found" || !navigation.canGoBack()) {
+                router.replace("/player");
+              } else {
+                router.push("/player");
+              }
             }
           }
         } catch (navErr) {

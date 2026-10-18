@@ -40,12 +40,26 @@ export const saveMessageLocally = async (friendId, msg, isOutgoing = false) => {
   if (!friendId || !msg) return [];
   try {
     const existing = await getLocalMessages(friendId);
-    // De-duplicate by _id
-    const exists = existing.some((m) => m._id && msg._id && m._id === msg._id);
+    const incomingId = msg.uuid || msg._id;
+
+    // De-duplicate by uuid/_id or matching payload timestamp
+    const exists = existing.some((m) => {
+      const existingId = m.uuid || m._id;
+      if (existingId && incomingId && existingId === incomingId) return true;
+      if (
+        m.senderId === msg.senderId &&
+        m.message === msg.message &&
+        Math.abs(new Date(m.createdAt || 0).getTime() - new Date(msg.createdAt || 0).getTime()) < 3000
+      ) {
+        return true;
+      }
+      return false;
+    });
     if (exists) return existing;
 
     const formatted = {
-      _id: msg._id || `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      _id: incomingId || `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      uuid: incomingId || undefined,
       senderId: msg.senderId,
       recipientId: msg.recipientId,
       message: msg.message,
@@ -54,6 +68,8 @@ export const saveMessageLocally = async (friendId, msg, isOutgoing = false) => {
       roomTitle: msg.roomTitle || null,
       createdAt: msg.createdAt || new Date().toISOString(),
       read: isOutgoing ? true : Boolean(msg.read),
+      isOutgoing: Boolean(isOutgoing),
+      status: msg.status || (isOutgoing ? 'sent' : 'delivered'),
     };
 
     const updated = [...existing, formatted].slice(-300); // keep recent 300
@@ -70,6 +86,93 @@ export const saveMessageLocally = async (friendId, msg, isOutgoing = false) => {
     console.warn('Failed to save message locally:', e);
     return [];
   }
+};
+
+/**
+ * Mark outgoing messages as delivered
+ */
+export const markOutgoingMessagesAsDelivered = async (friendId, messageUuids = null) => {
+  if (!friendId) return [];
+  try {
+    const messages = await getLocalMessages(friendId);
+    let changed = false;
+    const targetSet = Array.isArray(messageUuids) ? new Set(messageUuids) : null;
+
+    const updated = messages.map((m) => {
+      if (m.isOutgoing && m.status !== 'seen') {
+        const matches = !targetSet || targetSet.has(m.uuid) || targetSet.has(m._id);
+        if (matches) {
+          changed = true;
+          return { ...m, status: 'delivered' };
+        }
+      }
+      return m;
+    });
+
+    if (changed) {
+      await AsyncStorage.setItem(`${CHAT_PREFIX}${friendId}`, JSON.stringify(updated));
+      notifySubscribers();
+    }
+    return updated;
+  } catch (e) {
+    return [];
+  }
+};
+
+/**
+ * Mark all outgoing messages to a friend as seen (read receipt from friend)
+ */
+export const markOutgoingMessagesAsSeen = async (friendId) => {
+  if (!friendId) return [];
+  try {
+    const messages = await getLocalMessages(friendId);
+    let changed = false;
+
+    const updated = messages.map((m) => {
+      if (m.isOutgoing && m.status !== 'seen') {
+        changed = true;
+        return { ...m, status: 'seen' };
+      }
+      return m;
+    });
+
+    if (changed) {
+      await AsyncStorage.setItem(`${CHAT_PREFIX}${friendId}`, JSON.stringify(updated));
+      notifySubscribers();
+    }
+    return updated;
+  } catch (e) {
+    return [];
+  }
+};
+
+/**
+ * Active Chat Tracker: Track which friend's chat screen is currently open
+ */
+let currentActiveChatId = null;
+
+export const setActiveChatId = (friendId) => {
+  currentActiveChatId = friendId ? String(friendId) : null;
+};
+
+export const getActiveChatId = () => currentActiveChatId;
+
+/**
+ * Global In-App Notification Event Hub
+ */
+const notifListeners = new Set();
+
+export const subscribeToGlobalChatNotifications = (fn) => {
+  notifListeners.add(fn);
+  return () => notifListeners.delete(fn);
+};
+
+export const emitGlobalChatNotification = (notif) => {
+  notifListeners.forEach((fn) => {
+    try {
+      fn(notif);
+    } catch (e) {}
+  });
 };
 
 /**
@@ -134,3 +237,4 @@ export const clearLocalChat = async (friendId) => {
     notifySubscribers();
   } catch (e) {}
 };
+
