@@ -43,6 +43,10 @@ expo-env.d.ts
 #env
 *.env.*
 
+# Firebase / Google services - secrets, do not commit
+google-services.json
+GoogleService-Info.plist
+
 #sample files
 sample/
 

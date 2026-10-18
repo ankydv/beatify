@@ -3,7 +3,7 @@ import {
   useNavigation,
   useRouter,
 } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Linking } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import { disconnectSocket, initializeSocket, socket } from "@/configs/socket";
@@ -114,15 +114,24 @@ const EventListeners = () => {
   }, [isSignedIn, getToken]);
 
   const dispatch = useDispatch();
+  // Guard against double-POSTs: React StrictMode / re-renders can fire the
+  // metadata effect twice for the same track. Backend is idempotent (upsert),
+  // but this avoids the redundant network call entirely.
+  const lastHistoryVideoIdRef = useRef(null);
 
   useEffect(() => {
     if (metadata && isSignedIn) {
       // Party-mirrored room tracks carry no _playableFormat (synthetic
       // metadata built from the DJ bundle) — never write those to history.
       if (metadata?._playableFormat == null && metadata?.videoDetails?.isPartyMirror) return;
+      const videoId = metadata?.videoDetails?.videoId;
+      if (videoId && lastHistoryVideoIdRef.current === videoId) return;
+      if (videoId) lastHistoryVideoIdRef.current = videoId;
       addToHistory(metadata).then((res) => {
         dispatch(setSongId(res.history.song));
       }).catch((err) => {
+        // Allow retry if the write failed.
+        if (videoId) lastHistoryVideoIdRef.current = null;
         console.error("Failed to add track to history:", err);
       });
     }

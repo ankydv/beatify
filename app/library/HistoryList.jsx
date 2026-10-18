@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { View } from "react-native";
 import MusicListItem from "@/components/songListItem";
 import { useDispatch } from "react-redux";
@@ -11,6 +11,24 @@ const HistoryList = ({ histories }) => {
   const [selectedSong, setSelectedSong] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
 
+  // Defensive dedupe: backend now guarantees one row per (user, song), but
+  // pre-migration duplicates may still exist in DB — never render the same
+  // song twice.
+  const uniqueHistories = useMemo(() => {
+    if (!Array.isArray(histories)) return histories;
+    const seen = new Set();
+    return histories.filter((history) => {
+      const key =
+        history?.song?._id?.toString?.() ||
+        history?.song?.videoId ||
+        history?.song?.title;
+      if (!key) return true;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [histories]);
+
   const playSong = async (song) => {
     const handled = await handleVoiceRoomSongTap(song);
     if (handled) return;
@@ -19,9 +37,9 @@ const HistoryList = ({ histories }) => {
 
   return (
     <View>
-      {histories?.map((history, index) => (
+      {uniqueHistories?.map((history, index) => (
         <MusicListItem
-          key={history.song?.videoId || index}
+          key={history?._id?.toString?.() || history?.song?._id?.toString?.() || history?.song?.videoId || index}
           title={history.song?.title}
           subtitle={history.song?.author}
           imageUrl={history.song?.thumbnail?.thumbnails?.[0]?.url}
