@@ -1,0 +1,136 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const CHAT_PREFIX = '@beatify_chat_';
+const UNREAD_PREFIX = '@beatify_unread_';
+
+// Simple event subscriber for cross-component unread updates
+const listeners = new Set();
+
+export const subscribeToChatUpdates = (fn) => {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+};
+
+const notifySubscribers = () => {
+  listeners.forEach((fn) => {
+    try {
+      fn();
+    } catch (e) {}
+  });
+};
+
+/**
+ * Get messages stored locally on device for a specific friend
+ */
+export const getLocalMessages = async (friendId) => {
+  if (!friendId) return [];
+  try {
+    const raw = await AsyncStorage.getItem(`${CHAT_PREFIX}${friendId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.warn('Failed to load local messages:', e);
+    return [];
+  }
+};
+
+/**
+ * Save a message locally on device
+ */
+export const saveMessageLocally = async (friendId, msg, isOutgoing = false) => {
+  if (!friendId || !msg) return [];
+  try {
+    const existing = await getLocalMessages(friendId);
+    // De-duplicate by _id
+    const exists = existing.some((m) => m._id && msg._id && m._id === msg._id);
+    if (exists) return existing;
+
+    const formatted = {
+      _id: msg._id || `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      senderId: msg.senderId,
+      recipientId: msg.recipientId,
+      message: msg.message,
+      type: msg.type || (msg.roomId ? 'jam_invite' : 'text'),
+      roomId: msg.roomId || null,
+      roomTitle: msg.roomTitle || null,
+      createdAt: msg.createdAt || new Date().toISOString(),
+      read: isOutgoing ? true : Boolean(msg.read),
+    };
+
+    const updated = [...existing, formatted].slice(-300); // keep recent 300
+    await AsyncStorage.setItem(`${CHAT_PREFIX}${friendId}`, JSON.stringify(updated));
+
+    // Update unread count if incoming
+    if (!isOutgoing && !formatted.read) {
+      await incrementUnread(friendId);
+    }
+
+    notifySubscribers();
+    return updated;
+  } catch (e) {
+    console.warn('Failed to save message locally:', e);
+    return [];
+  }
+};
+
+/**
+ * Get unread counts map for all friends: { [friendId]: number, total: number }
+ */
+export const getUnreadCounts = async () => {
+  try {
+    const raw = await AsyncStorage.getItem(UNREAD_PREFIX);
+    const map = raw ? JSON.parse(raw) : {};
+    let total = 0;
+    Object.values(map).forEach((c) => {
+      total += Number(c) || 0;
+    });
+    return { ...map, total };
+  } catch (e) {
+    return { total: 0 };
+  }
+};
+
+/**
+ * Increment unread count for a friend
+ */
+export const incrementUnread = async (friendId) => {
+  if (!friendId) return;
+  try {
+    const counts = await getUnreadCounts();
+    counts[friendId] = (counts[friendId] || 0) + 1;
+    delete counts.total;
+    await AsyncStorage.setItem(UNREAD_PREFIX, JSON.stringify(counts));
+    notifySubscribers();
+  } catch (e) {}
+};
+
+/**
+ * Mark all messages from a friend as read
+ */
+export const markChatAsRead = async (friendId) => {
+  if (!friendId) return;
+  try {
+    // 1. Mark in messages list
+    const messages = await getLocalMessages(friendId);
+    const updated = messages.map((m) => ({ ...m, read: true }));
+    await AsyncStorage.setItem(`${CHAT_PREFIX}${friendId}`, JSON.stringify(updated));
+
+    // 2. Clear unread count for this friend
+    const counts = await getUnreadCounts();
+    delete counts[friendId];
+    delete counts.total;
+    await AsyncStorage.setItem(UNREAD_PREFIX, JSON.stringify(counts));
+
+    notifySubscribers();
+  } catch (e) {}
+};
+
+/**
+ * Clear local conversation
+ */
+export const clearLocalChat = async (friendId) => {
+  if (!friendId) return;
+  try {
+    await AsyncStorage.removeItem(`${CHAT_PREFIX}${friendId}`);
+    notifySubscribers();
+  } catch (e) {}
+};

@@ -6,7 +6,8 @@ import {
   TouchableOpacity,
   Image,
   RefreshControl,
-  Modal,
+  KeyboardAvoidingView,
+  Platform,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -34,7 +35,12 @@ export default function ChatScreen() {
     openChat,
     closeChat,
     sendChatMessage,
+    sendInvite,
     sendingMsg,
+    unreadCounts,
+    totalUnreadCount,
+    incomingNotification,
+    dismissNotification,
   } = useFriends();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,7 +51,7 @@ export default function ChatScreen() {
   const handleResponse = async (friendshipId, action) => {
     setRespondingId(friendshipId);
     try {
-      const res = await respondRequest(friendshipId, action);
+      await respondRequest(friendshipId, action);
       if (action === 'accept') {
         Alert.alert('Friend Connected! 🎉', 'You unlocked mutual synergy points with your new music friend.');
       }
@@ -79,8 +85,201 @@ export default function ChatScreen() {
 
   const liveFriends = friends.filter((f) => f.isLiveInRoom && f.roomInfo);
 
+  // -------------------------------------------------------------
+  // DEDICATED FULL-SCREEN CHAT CONVERSATION VIEW (NOT A MODAL)
+  // -------------------------------------------------------------
+  if (activeChatFriend) {
+    const friendId = activeChatFriend.friendId || activeChatFriend.id;
+    const isLive = activeChatFriend.isLiveInRoom && activeChatFriend.roomInfo?.roomId;
+
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top', 'bottom']}>
+        {/* Dedicated Chat Top Navigation Bar */}
+        <View style={[styles.chatRoomHeader, { backgroundColor: theme.colors.elevation.level2 }]}>
+          <TouchableOpacity onPress={closeChat} style={styles.backButton} activeOpacity={0.7}>
+            <Icon name="arrow-left" size={24} color={theme.colors.onSurface} />
+          </TouchableOpacity>
+
+          <View style={styles.chatRoomUserMeta}>
+            {activeChatFriend.picture ? (
+              <Image source={{ uri: activeChatFriend.picture }} style={styles.chatRoomAvatar} />
+            ) : (
+              <View style={[styles.chatRoomAvatar, styles.avatarFallback]}>
+                <Icon name="account" size={20} color="#FFFFFF" />
+              </View>
+            )}
+            <View style={{ marginLeft: 10, flex: 1 }}>
+              <Text variant="titleMedium" style={styles.chatRoomName} numberOfLines={1}>
+                {activeChatFriend.name}
+              </Text>
+              <View style={styles.synergyPill}>
+                <Icon name="shimmer" size={11} color="#FFD700" />
+                <Text style={styles.synergyPillText}>
+                  {activeChatFriend.synergyPoints || 10} Mutual Synergy (+5/msg)
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {isLive && (
+            <TouchableOpacity
+              style={styles.chatHeaderFollowBtn}
+              onPress={() => handleFollowRoom(activeChatFriend.roomInfo?.roomId)}
+              activeOpacity={0.8}
+            >
+              <Icon name="play-circle" size={14} color="#FFFFFF" />
+              <Text style={styles.chatHeaderFollowBtnText}>Follow</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Message History Timeline */}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
+          <ScrollView
+            style={styles.chatRoomScroll}
+            contentContainerStyle={styles.chatRoomScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {chatMessages.length === 0 ? (
+              <View style={styles.chatEmptyBox}>
+                <Icon name="chat-processing-outline" size={48} color="#666666" />
+                <Text style={styles.chatEmptyTitle}>Device-First Direct Chat 🔒</Text>
+                <Text style={styles.chatEmptySub}>
+                  Messages are stored securely on your device. Send a message to start vibing and earn mutual synergy points!
+                </Text>
+              </View>
+            ) : (
+              chatMessages.map((msg, idx) => {
+                const isMe = msg.senderId === user?.id;
+                const isJamInvite = msg.type === 'jam_invite' || Boolean(msg.roomId);
+
+                if (isJamInvite) {
+                  return (
+                    <View
+                      key={msg._id || idx}
+                      style={[
+                        styles.inviteCardWrapper,
+                        isMe ? styles.inviteCardMe : styles.inviteCardOther,
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={isMe ? ['#8A2387', '#E94057'] : ['#1F1C2C', '#928DAB']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.inviteCardGradient}
+                      >
+                        <View style={styles.inviteCardHeader}>
+                          <Icon name="music-box-multiple" size={18} color="#FFFFFF" />
+                          <Text style={styles.inviteCardBadge}>PARTY ROOM INVITE 🎧</Text>
+                        </View>
+                        <Text style={styles.inviteCardTitle} numberOfLines={2}>
+                          {msg.roomTitle || `Party Room #${msg.roomId}`}
+                        </Text>
+                        <Text style={styles.inviteCardCode}>Room Code: #{msg.roomId}</Text>
+
+                        <TouchableOpacity
+                          style={styles.inviteJoinButton}
+                          onPress={() => handleFollowRoom(msg.roomId)}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.inviteJoinButtonText}>Join Jam Room 🚀</Text>
+                          <Icon name="arrow-right-circle" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                        </TouchableOpacity>
+                      </LinearGradient>
+                    </View>
+                  );
+                }
+
+                return (
+                  <View
+                    key={msg._id || idx}
+                    style={[
+                      styles.chatBubble,
+                      isMe
+                        ? [styles.chatBubbleMe, { backgroundColor: theme.colors.primary }]
+                        : [styles.chatBubbleOther, { backgroundColor: theme.colors.elevation.level2 }],
+                    ]}
+                  >
+                    <Text style={[styles.chatBubbleText, isMe && { color: '#FFFFFF' }]}>
+                      {msg.message}
+                    </Text>
+                  </View>
+                );
+              })
+            )}
+          </ScrollView>
+
+          {/* Chat Message Input Bar */}
+          <View style={[styles.chatRoomInputRow, { backgroundColor: theme.colors.elevation.level1 }]}>
+            <TextInput
+              placeholder="Message friend (+5 synergy)..."
+              value={chatInputText}
+              onChangeText={setChatInputText}
+              mode="outlined"
+              dense
+              style={{ flex: 1, marginRight: 8, backgroundColor: theme.colors.background }}
+            />
+            <Button
+              mode="contained"
+              onPress={handleSendMessage}
+              loading={sendingMsg}
+              disabled={sendingMsg || !chatInputText.trim()}
+              style={{ borderRadius: 10 }}
+            >
+              Send
+            </Button>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // DEDICATED MESSAGES DASHBOARD & CONVERSATION LIST
+  // -------------------------------------------------------------
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
+      {/* ---------------- In-App Floating Notification Banner ---------------- */}
+      {incomingNotification && (
+        <View style={styles.notificationToastWrapper}>
+          <TouchableOpacity
+            style={styles.notificationToast}
+            onPress={() => {
+              const notif = incomingNotification;
+              dismissNotification();
+              if (notif.roomId) {
+                handleFollowRoom(notif.roomId);
+              } else if (notif.senderId) {
+                const target = friends.find((f) => f.friendId === notif.senderId);
+                if (target) openChat(target);
+              }
+            }}
+            activeOpacity={0.9}
+          >
+            <View style={styles.toastIconBox}>
+              <Icon
+                name={incomingNotification.type === 'jam_invite' ? 'music-circle' : 'message-text'}
+                size={22}
+                color="#FFFFFF"
+              />
+            </View>
+            <View style={{ flex: 1, marginHorizontal: 10 }}>
+              <Text style={styles.toastTitle}>{incomingNotification.title}</Text>
+              <Text style={styles.toastMessage} numberOfLines={1}>
+                {incomingNotification.message}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={dismissNotification} style={{ padding: 4 }}>
+              <Icon name="close" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* ---------------- Top Header ---------------- */}
       <View style={styles.header}>
         <View>
@@ -92,12 +291,17 @@ export default function ChatScreen() {
           </Text>
         </View>
 
-        {pendingRequests.length > 0 && (
+        {totalUnreadCount > 0 ? (
+          <View style={[styles.totalUnreadPill, { backgroundColor: '#E94057' }]}>
+            <Icon name="message-badge" size={14} color="#FFFFFF" />
+            <Text style={styles.totalUnreadText}>{totalUnreadCount} New</Text>
+          </View>
+        ) : pendingRequests.length > 0 ? (
           <View style={[styles.pendingCounterPill, { backgroundColor: theme.colors.primary }]}>
             <Icon name="bell-ring" size={14} color="#FFFFFF" />
             <Text style={styles.pendingCounterText}>{pendingRequests.length} Requests</Text>
           </View>
-        )}
+        ) : null}
       </View>
 
       <ScrollView
@@ -112,14 +316,14 @@ export default function ChatScreen() {
           />
         }
       >
-        {/* ---------------- Pending Requests Section ---------------- */}
+        {/* ---------------- Incoming Friend Requests Section ---------------- */}
         {pendingRequests.length > 0 && (
           <View style={styles.pendingSection}>
             <View style={styles.sectionHeaderRow}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Icon name="account-clock" size={20} color="#FFD700" style={{ marginRight: 6 }} />
                 <Text variant="titleSmall" style={styles.sectionTitle}>
-                  Incoming Friend Requests ({pendingRequests.length})
+                  Incoming Requests ({pendingRequests.length})
                 </Text>
               </View>
             </View>
@@ -206,6 +410,7 @@ export default function ChatScreen() {
                   <TouchableOpacity
                     style={styles.liveFollowBtn}
                     onPress={() => handleFollowRoom(f.roomInfo?.roomId)}
+                    activeOpacity={0.8}
                   >
                     <Icon name="account-arrow-right" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
                     <Text style={styles.liveFollowBtnText}>Follow</Text>
@@ -229,7 +434,7 @@ export default function ChatScreen() {
           />
         </View>
 
-        {/* ---------------- Friends List ---------------- */}
+        {/* ---------------- Friends List with Unread Badges & Direct Follow Buttons ---------------- */}
         <View style={styles.friendsListSection}>
           <Text variant="titleMedium" style={styles.friendsListHeading}>
             All Friends ({friends.length})
@@ -255,157 +460,83 @@ export default function ChatScreen() {
               <Text style={styles.emptyStateSub}>No friends matching "{searchQuery}"</Text>
             </View>
           ) : (
-            filteredFriends.map((f) => (
-              <TouchableOpacity
-                key={f.friendId}
-                style={[styles.friendRow, { backgroundColor: theme.colors.elevation.level1 }]}
-                onPress={() => openChat(f)}
-                activeOpacity={0.75}
-              >
-                <View style={styles.friendRowAvatarBox}>
-                  {f.picture ? (
-                    <Image source={{ uri: f.picture }} style={styles.friendRowAvatar} />
-                  ) : (
-                    <View style={[styles.friendRowAvatar, styles.avatarFallback]}>
-                      <Icon name="account" size={24} color="#FFFFFF" />
-                    </View>
-                  )}
-                  {f.isLiveInRoom && <View style={styles.liveIndicatorBadge} />}
-                </View>
+            filteredFriends.map((f) => {
+              const friendId = f.friendId || f.id;
+              const unread = unreadCounts[friendId] || 0;
+              const isLive = f.isLiveInRoom && f.roomInfo?.roomId;
 
-                <View style={styles.friendRowMeta}>
-                  <View style={styles.friendRowTopLine}>
-                    <Text style={styles.friendRowName} numberOfLines={1}>
-                      {f.name}
-                    </Text>
-                    <View style={styles.synergyBadge}>
-                      <Icon name="shimmer" size={12} color="#FFD700" />
-                      <Text style={styles.synergyBadgeText}>{f.synergyPoints || 10} Synergy</Text>
-                    </View>
+              return (
+                <TouchableOpacity
+                  key={friendId}
+                  style={[styles.friendRow, { backgroundColor: theme.colors.elevation.level1 }]}
+                  onPress={() => openChat(f)}
+                  activeOpacity={0.78}
+                >
+                  <View style={styles.friendRowAvatarBox}>
+                    {f.picture ? (
+                      <Image source={{ uri: f.picture }} style={styles.friendRowAvatar} />
+                    ) : (
+                      <View style={[styles.friendRowAvatar, styles.avatarFallback]}>
+                        <Icon name="account" size={24} color="#FFFFFF" />
+                      </View>
+                    )}
+                    {isLive && <View style={styles.liveIndicatorBadge} />}
                   </View>
 
-                  <Text style={styles.friendRowStatus} numberOfLines={1}>
-                    {f.isLiveInRoom
-                      ? `🎧 Listening in ${f.roomInfo?.title || `Room #${f.roomInfo?.roomId}`}`
-                      : f.lastMessage?.message
-                      ? f.lastMessage.message
-                      : 'Tap to start a conversation'}
-                  </Text>
-                </View>
+                  <View style={styles.friendRowMeta}>
+                    <View style={styles.friendRowTopLine}>
+                      <Text style={styles.friendRowName} numberOfLines={1}>
+                        {f.name}
+                      </Text>
 
-                <Icon name="chevron-right" size={20} color="#888888" />
-              </TouchableOpacity>
-            ))
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={styles.synergyBadge}>
+                          <Icon name="shimmer" size={11} color="#FFD700" />
+                          <Text style={styles.synergyBadgeText}>{f.synergyPoints || 10} Synergy</Text>
+                        </View>
+
+                        {/* Unread Message Indicator per Chat in Chat List */}
+                        {unread > 0 && (
+                          <View style={styles.unreadCountBadge}>
+                            <Text style={styles.unreadCountText}>{unread}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+
+                    <Text style={[styles.friendRowStatus, unread > 0 && styles.friendRowStatusUnread]} numberOfLines={1}>
+                      {isLive
+                        ? `🎧 Live in ${f.roomInfo?.title || `Room #${f.roomInfo?.roomId}`}`
+                        : f.lastMessage?.message
+                        ? f.lastMessage.message
+                        : 'Tap to open chat'}
+                    </Text>
+                  </View>
+
+                  {/* 1-Tap Follow Button in Chatlist Item */}
+                  {isLive ? (
+                    <TouchableOpacity
+                      style={styles.chatListFollowBtn}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleFollowRoom(f.roomInfo?.roomId);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Icon name="account-arrow-right" size={14} color="#FFFFFF" />
+                      <Text style={styles.chatListFollowBtnText}>Follow</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Icon name="chevron-right" size={20} color="#888888" style={{ marginLeft: 6 }} />
+                  )}
+                </TouchableOpacity>
+              );
+            })
           )}
         </View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
-
-      {/* ---------------- 1-on-1 Chat Modal ---------------- */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={Boolean(activeChatFriend)}
-        onRequestClose={closeChat}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.chatModalContent, { backgroundColor: theme.colors.elevation.level3 }]}>
-            {/* Chat Modal Header */}
-            <View style={styles.chatModalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                {activeChatFriend?.picture ? (
-                  <Image source={{ uri: activeChatFriend.picture }} style={styles.chatFriendAvatar} />
-                ) : (
-                  <View style={[styles.chatFriendAvatar, styles.avatarFallback]}>
-                    <Icon name="account" size={18} color="#FFFFFF" />
-                  </View>
-                )}
-                <View style={{ marginLeft: 10, flex: 1 }}>
-                  <Text variant="titleMedium" style={{ fontWeight: '700' }} numberOfLines={1}>
-                    {activeChatFriend?.name}
-                  </Text>
-                  <View style={styles.synergyPill}>
-                    <Icon name="shimmer" size={11} color="#FFD700" />
-                    <Text style={styles.synergyPillText}>
-                      {activeChatFriend?.synergyPoints || 10} Mutual Synergy (+5 per message)
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {activeChatFriend?.isLiveInRoom && activeChatFriend.roomInfo?.roomId && (
-                <TouchableOpacity
-                  style={styles.chatFollowBtn}
-                  onPress={() => {
-                    const rid = activeChatFriend.roomInfo?.roomId;
-                    closeChat();
-                    handleFollowRoom(rid);
-                  }}
-                >
-                  <Icon name="play-circle" size={14} color="#FFFFFF" />
-                  <Text style={styles.chatFollowBtnText}>Follow</Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity onPress={closeChat} style={{ marginLeft: 8 }}>
-                <Icon name="close" size={24} color={theme.colors.onSurface} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Chat Messages */}
-            <ScrollView style={styles.chatMessagesScroll} contentContainerStyle={{ gap: 8, paddingVertical: 10 }}>
-              {chatMessages.length === 0 ? (
-                <View style={{ alignItems: 'center', paddingVertical: 30 }}>
-                  <Icon name="chat-outline" size={40} color="#888888" />
-                  <Text style={{ color: '#888888', marginTop: 8, fontSize: 13, textAlign: 'center' }}>
-                    No messages yet. Send a message to chat and earn mutual synergy points!
-                  </Text>
-                </View>
-              ) : (
-                chatMessages.map((msg, idx) => {
-                  const isMe = msg.senderId === user?.id;
-                  return (
-                    <View
-                      key={msg._id || idx}
-                      style={[
-                        styles.chatBubble,
-                        isMe
-                          ? [styles.chatBubbleMe, { backgroundColor: theme.colors.primary }]
-                          : styles.chatBubbleOther,
-                      ]}
-                    >
-                      <Text style={[styles.chatBubbleText, isMe && { color: '#FFFFFF' }]}>
-                        {msg.message}
-                      </Text>
-                    </View>
-                  );
-                })
-              )}
-            </ScrollView>
-
-            {/* Input Row */}
-            <View style={styles.chatInputRow}>
-              <TextInput
-                placeholder="Message friend..."
-                value={chatInputText}
-                onChangeText={setChatInputText}
-                mode="outlined"
-                dense
-                style={{ flex: 1, marginRight: 8 }}
-              />
-              <Button
-                mode="contained"
-                onPress={handleSendMessage}
-                loading={sendingMsg}
-                disabled={sendingMsg || !chatInputText.trim()}
-              >
-                Send
-              </Button>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -431,6 +562,19 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontWeight: '800',
     letterSpacing: 0.2,
+  },
+  totalUnreadPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    gap: 4,
+  },
+  totalUnreadText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   pendingCounterPill: {
     flexDirection: 'row',
@@ -632,7 +776,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
-    maxWidth: '65%',
+    maxWidth: '60%',
   },
   synergyBadge: {
     flexDirection: 'row',
@@ -648,9 +792,42 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
+  unreadCountBadge: {
+    backgroundColor: '#E94057',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadCountText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
   friendRowStatus: {
     fontSize: 12,
     color: '#AAAAAA',
+  },
+  friendRowStatusUnread: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  chatListFollowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E94057',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    gap: 4,
+    marginLeft: 8,
+  },
+  chatListFollowBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   emptyStateBox: {
     alignItems: 'center',
@@ -682,30 +859,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 13,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    justifyContent: 'flex-end',
-  },
-  chatModalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 16,
-    maxHeight: '80%',
-    minHeight: '55%',
-  },
-  chatModalHeader: {
+
+  // ---------------- Dedicated Chat View Styles ----------------
+  chatRoomHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
-  chatFriendAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  backButton: {
+    padding: 6,
+    marginRight: 6,
+  },
+  chatRoomUserMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  chatRoomAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+  },
+  chatRoomName: {
+    fontSize: 16,
+    fontWeight: '800',
   },
   synergyPill: {
     flexDirection: 'row',
@@ -716,35 +896,58 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 2,
     gap: 3,
+    alignSelf: 'flex-start',
   },
   synergyPillText: {
     color: '#FFD700',
     fontSize: 10,
     fontWeight: '700',
   },
-  chatFollowBtn: {
+  chatHeaderFollowBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#E94057',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    gap: 3,
-    marginRight: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    gap: 4,
+    marginLeft: 8,
   },
-  chatFollowBtnText: {
+  chatHeaderFollowBtnText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
-  chatMessagesScroll: {
+  chatRoomScroll: {
     flex: 1,
   },
+  chatRoomScrollContent: {
+    padding: 14,
+    gap: 10,
+  },
+  chatEmptyBox: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+  },
+  chatEmptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: 10,
+  },
+  chatEmptySub: {
+    fontSize: 13,
+    color: '#888888',
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 18,
+  },
   chatBubble: {
-    maxWidth: '80%',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
+    maxWidth: '82%',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
   },
   chatBubbleMe: {
     alignSelf: 'flex-end',
@@ -752,15 +955,117 @@ const styles = StyleSheet.create({
   },
   chatBubbleOther: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     borderBottomLeftRadius: 2,
   },
   chatBubbleText: {
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 19,
   },
-  chatInputRow: {
+  chatRoomInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+  },
+
+  // ---------------- Clickable Jam Invite Card Styles ----------------
+  inviteCardWrapper: {
+    maxWidth: '85%',
+    marginVertical: 4,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  inviteCardMe: {
+    alignSelf: 'flex-end',
+  },
+  inviteCardOther: {
+    alignSelf: 'flex-start',
+  },
+  inviteCardGradient: {
+    padding: 14,
+    borderRadius: 16,
+  },
+  inviteCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  inviteCardBadge: {
+    color: '#FFD700',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  inviteCardTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  inviteCardCode: {
+    color: 'rgba(255, 255, 255, 0.75)',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+  inviteJoinButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  inviteJoinButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+
+  // ---------------- Floating Toast Notification Styles ----------------
+  notificationToastWrapper: {
+    position: 'absolute',
+    top: 50,
+    left: 14,
+    right: 14,
+    zIndex: 9999,
+    elevation: 10,
+  },
+  notificationToast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E1B2E',
+    borderWidth: 1,
+    borderColor: '#E94057',
+    padding: 12,
+    borderRadius: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  toastIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E94057',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toastTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  toastMessage: {
+    color: '#DDDDDD',
+    fontSize: 12,
+    marginTop: 2,
   },
 });

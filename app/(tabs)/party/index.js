@@ -55,16 +55,10 @@ const PartyScreen = () => {
     pendingRequests,
     sendRequest,
     respondRequest,
-    activeChatFriend,
-    chatMessages,
-    openChat,
-    closeChat,
-    sendChatMessage,
-    sendingMsg,
+    sendInvite
   } = useFriends();
 
-  // Friend chat state
-  const [chatInputText, setChatInputText] = useState('');
+  // Friend request state
   const [requestedFriendIds, setRequestedFriendIds] = useState([]);
 
   // Code join state
@@ -88,14 +82,6 @@ const PartyScreen = () => {
     } catch (e) {
       Alert.alert('Notice', e?.message || 'Could not send friend request');
     }
-  };
-
-  // Send direct message handler
-  const handleSendChatMessage = async () => {
-    if (!chatInputText.trim()) return;
-    const msg = chatInputText.trim();
-    setChatInputText('');
-    await sendChatMessage(msg);
   };
 
   // Quick join room handler
@@ -188,18 +174,27 @@ const PartyScreen = () => {
     const peerName = (peer.name || 'Friend').split(' ')[0];
     const myName = currentUser?.firstName || 'Host';
 
+    const roomTitle = `Jam: ${myName} & ${peerName} 🎧`;
+
     try {
       await createRoom({
-        title: `Jam: ${myName} & ${peerName} 🎧`,
+        title: roomTitle,
         vibe: peer.favoriteGenre || (selectedVibe !== 'All' ? selectedVibe : 'Chill'),
         tags: [peer.favoriteGenre || 'chill', 'jam'].filter(Boolean),
         roomId: uniqueRoomId,
       });
 
-      if (peer.friendStatus === 'accepted') {
-        sendChatMessage(`Started a private Jam room for us (#${uniqueRoomId})! Jump in 🚀`).catch(() => {});
+      const peerId = peer.id || peer.friendId;
+      if (peerId) {
+        await sendInvite({
+          recipientId: peerId,
+          roomId: uniqueRoomId,
+          roomTitle,
+        });
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('handleJamTogether error:', e);
+    }
 
     joinRoom(uniqueRoomId);
   };
@@ -701,7 +696,7 @@ const PartyScreen = () => {
                     {m.friendStatus === 'accepted' ? (
                       <TouchableOpacity
                         style={[styles.matchActionBtn, styles.chatFriendBtn]}
-                        onPress={() => openChat(m)}
+                        onPress={() => router.push('/(tabs)/chat')}
                       >
                         <Icon name="chat" size={12} color="#FFFFFF" style={{ marginRight: 4 }} />
                         <Text style={styles.matchActionText}>Chat</Text>
@@ -822,93 +817,6 @@ const PartyScreen = () => {
             >
               Start Collaborative Room
             </Button>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ---------------- Friend Direct Chat Modal ---------------- */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={Boolean(activeChatFriend)}
-        onRequestClose={closeChat}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.chatModalContent, { backgroundColor: theme.colors.elevation.level3 }]}>
-            <View style={styles.chatHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                {activeChatFriend?.picture ? (
-                  <Image source={{ uri: activeChatFriend.picture }} style={styles.chatFriendAvatar} />
-                ) : (
-                  <View style={[styles.chatFriendAvatar, styles.avatarFallback]}>
-                    <Icon name="account" size={18} color="#FFFFFF" />
-                  </View>
-                )}
-                <View style={{ marginLeft: 10 }}>
-                  <Text variant="titleMedium" style={{ fontWeight: '700' }}>
-                    {activeChatFriend?.name}
-                  </Text>
-                  <View style={styles.synergyBadgePill}>
-                    <Icon name="shimmer" size={12} color="#FFD700" />
-                    <Text style={styles.synergyBadgePillText}>
-                      {activeChatFriend?.synergyPoints || 10} Mutual Synergy
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              <TouchableOpacity onPress={closeChat}>
-                <Icon name="close" size={24} color={theme.colors.onSurface} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Chat Messages */}
-            <ScrollView style={styles.chatMessagesScroll} contentContainerStyle={{ gap: 8, paddingVertical: 10 }}>
-              {chatMessages.length === 0 ? (
-                <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                  <Icon name="chat-outline" size={32} color="#888888" />
-                  <Text style={{ color: '#888888', marginTop: 6, fontSize: 13 }}>
-                    Send a message to earn mutual synergy points!
-                  </Text>
-                </View>
-              ) : (
-                chatMessages.map((msg, idx) => {
-                  const isMe = msg.senderId === currentUser?.id;
-                  return (
-                    <View
-                      key={msg._id || idx}
-                      style={[
-                        styles.chatBubble,
-                        isMe ? [styles.chatBubbleMe, { backgroundColor: theme.colors.primary }] : styles.chatBubbleOther,
-                      ]}
-                    >
-                      <Text style={[styles.chatBubbleText, isMe && { color: '#FFFFFF' }]}>
-                        {msg.message}
-                      </Text>
-                    </View>
-                  );
-                })
-              )}
-            </ScrollView>
-
-            {/* Message Input */}
-            <View style={styles.chatInputRow}>
-              <TextInput
-                placeholder="Message friend..."
-                value={chatInputText}
-                onChangeText={setChatInputText}
-                mode="outlined"
-                dense
-                style={{ flex: 1, marginRight: 8 }}
-              />
-              <Button
-                mode="contained"
-                onPress={handleSendChatMessage}
-                loading={sendingMsg}
-                disabled={sendingMsg || !chatInputText.trim()}
-              >
-                Send
-              </Button>
-            </View>
           </View>
         </View>
       </Modal>

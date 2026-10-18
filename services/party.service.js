@@ -143,11 +143,11 @@ export function usePartyPlayback({ roomId, enabled = true }) {
             try {
               await loadPartyBundle(bundle, ((st.anchorPosMs || 0) / 1000));
               const delay = delayRef.current ? delayRef.current(st.playAtServerMs) : Math.max(0, (st.playAtServerMs || 0) - now);
-              scheduleAt(delay, async () => {
+              setTimeout(async () => {
                 if (!alive) return;
                 dispatch(applyState({ status: 'playing' }));
                 await ensurePlaying();
-              });
+              }, delay);
 
               setTimeout(async () => {
                 if (!alive) return;

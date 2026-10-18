@@ -18,7 +18,7 @@ class Track {
       if(this.track === null)
         return 'track cannot be null'
       if(!(this.track.thumbnail || this.track.thumbnails)) return null;
-      thumbnails = this.track.thumbnails ? this.track.thumbnails.sort() : this.track.thumbnail.sort();
+      const thumbnails = this.track.thumbnails ? this.track.thumbnails.sort() : this.track.thumbnail.sort();
       switch(size){
             case 'mini':
                 return thumbnails[0].url;

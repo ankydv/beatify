@@ -9,6 +9,7 @@ import {
   BackHandler,
   Dimensions,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -18,6 +19,7 @@ import { socket } from '@/configs/socket';
 import LoadingIndicator from '@/components/LoadingIndicator';
 import DJPanel from './DJPanel';
 import PartyTransport from './PartyTransport';
+import { useFriends } from '@/hooks/friends.hooks';
 import { setRoom, setMinimised, resetParty, setJoinError } from '@/state/slices/party.slice';
 import { usePartyPresence, REACTIONS } from '@/hooks/partyPresence.hooks';
 import {
@@ -87,6 +89,10 @@ const PartyRoom = () => {
   const participants = party.participants || [];
   const count = participants.length;
 
+  const { friends, sendInvite } = useFriends();
+  const [inviteModalVisible, setInviteModalVisible] = useState(false);
+  const [invitedIds, setInvitedIds] = useState([]);
+
   const handleMemberPress = (p) => {
     if (!p.clerkId) {
       Alert.alert(p.name || 'Room Member', 'This user is listening anonymously.');
@@ -133,6 +139,13 @@ const PartyRoom = () => {
               : `${count} ${count === 1 ? 'person' : 'people'} in the party`}
           </Text>
         </View>
+        <TouchableOpacity
+          onPress={() => setInviteModalVisible(true)}
+          style={[styles.headerBtn, styles.inviteHeaderBtn]}
+          hitSlop={10}
+        >
+          <Icon name="account-plus" size={18} color="#FFD700" />
+        </TouchableOpacity>
         <TouchableOpacity onPress={minimize} style={styles.headerBtn} hitSlop={10}>
           <Icon name="chevron-down" size={20} color="#fff" />
         </TouchableOpacity>
@@ -161,6 +174,7 @@ const PartyRoom = () => {
         djId={party.djSocketId}
         muted={muted}
         onPressMember={handleMemberPress}
+        onPressInvite={() => setInviteModalVisible(true)}
       />
 
       {/* ---------------- the ONE flexible region (chat / queue) ---------------- */}
@@ -378,6 +392,82 @@ const PartyRoom = () => {
           variant="party"
         />
       </View>
+
+      {/* ---------------- INVITE FRIENDS MODAL ---------------- */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={inviteModalVisible}
+        onRequestClose={() => setInviteModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.inviteModalContent}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Icon name="account-multiple-plus" size={20} color="#FFD700" style={{ marginRight: 8 }} />
+                <Text style={styles.modalTitle}>Invite Friends to Party 🎧</Text>
+              </View>
+              <TouchableOpacity onPress={() => setInviteModalVisible(false)}>
+                <Icon name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 320, marginVertical: 10 }}>
+              {friends.length === 0 ? (
+                <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+                  <Text style={{ color: '#888888', fontSize: 13 }}>No friends connected yet.</Text>
+                </View>
+              ) : (
+                friends.map((f) => {
+                  const fid = f.friendId || f.id;
+                  const isInvited = invitedIds.includes(fid);
+                  return (
+                    <View key={fid} style={styles.inviteFriendRow}>
+                      {f.picture ? (
+                        <Image source={{ uri: f.picture }} style={styles.inviteFriendAvatar} />
+                      ) : (
+                        <View style={[styles.inviteFriendAvatar, styles.avatarFallback]}>
+                          <Icon name="account" size={18} color="#FFFFFF" />
+                        </View>
+                      )}
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.inviteFriendName} numberOfLines={1}>
+                          {f.name}
+                        </Text>
+                        <Text style={styles.inviteFriendSynergy}>
+                          {f.synergyPoints || 10} Mutual Synergy
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.sendInviteBtn, isInvited && styles.sendInviteBtnSent]}
+                        disabled={isInvited}
+                        onPress={async () => {
+                          setInvitedIds((prev) => [...prev, fid]);
+                          await sendInvite({
+                            recipientId: fid,
+                            roomId,
+                            roomTitle: party.title || `Party Room #${roomId}`,
+                          });
+                        }}
+                      >
+                        <Icon
+                          name={isInvited ? 'check' : 'send'}
+                          size={14}
+                          color="#FFFFFF"
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text style={styles.sendInviteBtnText}>
+                          {isInvited ? 'Invited' : 'Invite'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -387,7 +477,7 @@ export default PartyRoom;
 /* ------------------------------------------------------------------ */
 /* Participant strip — horizontal, compact height, never squeezes out  */
 /* ------------------------------------------------------------------ */
-function ParticipantStrip({ participants, presence, meId, djId, muted, onPressMember }) {
+function ParticipantStrip({ participants, presence, meId, djId, muted, onPressMember, onPressInvite }) {
   return (
     <View style={styles.stripWrap}>
       <View style={styles.stripHead}>
@@ -402,6 +492,12 @@ function ParticipantStrip({ participants, presence, meId, djId, muted, onPressMe
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.stripScroll}
       >
+        <TouchableOpacity style={styles.stripInviteBtn} onPress={onPressInvite} activeOpacity={0.8}>
+          <View style={styles.stripInviteIconBox}>
+            <Icon name="account-plus" size={16} color="#FFD700" />
+          </View>
+          <Text style={styles.stripInviteText}>Invite</Text>
+        </TouchableOpacity>
         {participants.length === 0 ? (
           <Text style={styles.stripEmpty}>Waiting for friends to pull up…</Text>
         ) : (
@@ -844,4 +940,98 @@ const styles = StyleSheet.create({
   },
   controlLabel: { color: '#8f86b3', fontSize: 9.5, fontWeight: '600' },
   controlLabelActive: { color: '#f472b6' },
+
+  /* Invite Friends Modal & Strip Styles */
+  inviteHeaderBtn: {
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.35)',
+  },
+  stripInviteBtn: {
+    width: 54,
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  stripInviteIconBox: {
+    width: AVATAR + 6,
+    height: AVATAR + 6,
+    borderRadius: (AVATAR + 6) / 2,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255, 215, 0, 0.6)',
+    backgroundColor: 'rgba(255, 215, 0, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stripInviteText: {
+    color: '#FFD700',
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 3,
+    textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  inviteModalContent: {
+    backgroundColor: '#18122B',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: '#3b2d5c',
+    padding: 20,
+    maxHeight: '75%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  inviteFriendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#251b3d',
+  },
+  inviteFriendAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    marginRight: 12,
+  },
+  inviteFriendName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  inviteFriendSynergy: {
+    fontSize: 11,
+    color: '#a78bfa',
+    marginTop: 2,
+  },
+  sendInviteBtn: {
+    backgroundColor: '#6200ee',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  sendInviteBtnSent: {
+    backgroundColor: '#2e244d',
+    borderWidth: 1,
+    borderColor: '#4d3a7d',
+  },
+  sendInviteBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
 });

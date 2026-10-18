@@ -65,13 +65,49 @@ export const getDirectMessages = async ({ friendId, token } = {}) => {
   }
 };
 
-export const sendDirectMessage = async ({ recipientId, message, token } = {}) => {
+export const sendDirectMessage = async ({
+  recipientId,
+  message,
+  type = 'text',
+  roomId = null,
+  roomTitle = null,
+  saveToCloud = false,
+  uuid = null,
+  token,
+} = {}) => {
   try {
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
-    const response = await friendApi.post('/messages/send', { recipientId, message }, { headers });
+    const response = await friendApi.post(
+      '/messages/send',
+      { recipientId, message, type, roomId, roomTitle, saveToCloud, uuid },
+      { headers }
+    );
     return response.data;
   } catch (error) {
     console.error('Error sending message:', error?.response?.data || error.message);
     throw error?.response?.data || { message: 'Failed to send message' };
   }
 };
+
+export const sweepMessagesApi = async ({ token } = {}) => {
+  try {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const response = await friendApi.get('/messages/sweep', { headers });
+    return response.data;
+  } catch (error) {
+    console.error('Error sweeping messages:', error?.response?.data || error.message);
+    return { success: false, messages: [] };
+  }
+};
+
+export const ackMessagesApi = async ({ messageUuids, token } = {}) => {
+  try {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const response = await friendApi.post('/messages/ack', { messageUuids }, { headers });
+    return response.data;
+  } catch (error) {
+    console.error('Error acking messages:', error?.response?.data || error.message);
+    return { success: false, purgedCount: 0 };
+  }
+};
+
