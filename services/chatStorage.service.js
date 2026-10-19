@@ -5,6 +5,7 @@ const UNREAD_PREFIX = '@beatify_unread_';
 
 // Simple event subscriber for cross-component unread updates
 const listeners = new Set();
+let notifyScheduled = false;
 
 export const subscribeToChatUpdates = (fn) => {
   listeners.add(fn);
@@ -12,11 +13,22 @@ export const subscribeToChatUpdates = (fn) => {
 };
 
 const notifySubscribers = () => {
-  listeners.forEach((fn) => {
-    try {
-      fn();
-    } catch (e) {}
-  });
+  // Coalesce bursts (sweep writes N messages in a loop): one notify per frame.
+  if (notifyScheduled) return;
+  notifyScheduled = true;
+  const run = () => {
+    notifyScheduled = false;
+    listeners.forEach((fn) => {
+      try {
+        fn();
+      } catch (e) {}
+    });
+  };
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(run);
+  } else {
+    setTimeout(run, 0);
+  }
 };
 
 /**
@@ -98,9 +110,16 @@ export const saveMessageLocally = async (friendId, msg, isOutgoing = false) => {
     const updated = [...existing, formatted].slice(-300); // keep recent 300
     await AsyncStorage.setItem(`${CHAT_PREFIX}${friendId}`, JSON.stringify(updated));
 
-    // Update unread count if incoming
+    // Update unread count if incoming (inline: incrementUnread would
+    // re-read + notify a 2nd time — one notify per save is enough).
     if (!isOutgoing && !formatted.read) {
-      await incrementUnread(friendId);
+      try {
+        const raw = await AsyncStorage.getItem(UNREAD_PREFIX);
+        const counts = raw ? JSON.parse(raw) : {};
+        counts[friendId] = (counts[friendId] || 0) + 1;
+        delete counts.total;
+        await AsyncStorage.setItem(UNREAD_PREFIX, JSON.stringify(counts));
+      } catch (e) {}
     }
 
     notifySubscribers();

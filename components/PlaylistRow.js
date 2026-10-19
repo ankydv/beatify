@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Alert, FlatList, StyleSheet, View } from 'react-native';
 import SongCard from './SongCard';
 import { useNavigation, useRouter } from 'expo-router';
@@ -15,7 +15,7 @@ const PlaylistRow = ({ items, title }) => {
   const dispatch = useDispatch();
 
   const isArtistCategory = title.includes('artist');
-  const handlePress = async (item) => {
+  const handlePress = useCallback(async (item) => {
     const isVideo = Boolean(item.videoId);
     const isArtist = isArtistCategory || item.resultType === 'artist' || Boolean(item.subscribers);
     const isPlaylist = Boolean(item.playlistId);
@@ -45,13 +45,17 @@ const PlaylistRow = ({ items, title }) => {
     } else {
       showUnimplementedFeatureAlert();
     }
-  };
+  }, [dispatch, router, title, isArtistCategory]);
+
+  const renderItem = useCallback(({ item }) => (
+    <SongCard item={item} onPress={() => handlePress(item)} />
+  ), [handlePress]);
 
   return (
     <FlatList
       horizontal
       data={items}
-      renderItem={({ item }) => <SongCard item={item} onPress={() => handlePress(item)}/>}
+      renderItem={renderItem}
       keyExtractor={(item, index) =>
         item?.playlistId ||
         item?.browseId ||

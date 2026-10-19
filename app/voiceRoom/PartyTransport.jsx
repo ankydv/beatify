@@ -10,7 +10,8 @@ const fmt = (sec) => {
   return `${Math.floor(s / 60)}:${`${s % 60}`.padStart(2, '0')}`;
 };
 
-/** Cheap, crash-proof read of the shared player's head (never rejects). */
+/** Cheap, crash-proof read of the shared player's head (never rejects).
+ *  1s tick is plenty for a mm:ss label + % bar; halves re-renders vs 500ms. */
 function usePlayhead() {
   const [head, setHead] = useState({ pos: 0, dur: 0 });
   useEffect(() => {
@@ -20,14 +21,17 @@ function usePlayhead() {
         const p = await TrackPlayer.getPosition();
         const d = await TrackPlayer.getDuration();
         if (!alive) return;
-        setHead({
-          pos: Number.isFinite(p) ? p : 0,
-          dur: Number.isFinite(d) ? d : 0,
+        const pos = Number.isFinite(p) ? p : 0;
+        const dur = Number.isFinite(d) ? d : 0;
+        setHead((prev) => {
+          // Skip re-render when nothing visible changed (<1s / same second).
+          if (Math.abs(prev.pos - pos) < 0.9 && prev.dur === dur) return prev;
+          return { pos, dur };
         });
       } catch (e) {}
     };
     tick();
-    const id = setInterval(tick, 500);
+    const id = setInterval(tick, 1000);
     return () => {
       alive = false;
       clearInterval(id);
@@ -36,32 +40,28 @@ function usePlayhead() {
   return head;
 }
 
-/** Animated dancing equalizer visualizer bars for party ambiance */
+/** Animated dancing equalizer visualizer bars for party ambiance.
+ *  Uses scaleY (transform, UI-thread) instead of height (layout, JS-thread)
+ *  so it never janks drags / scrolls while playing. */
 function Equalizer({ playing }) {
-  const h1 = useRef(new Animated.Value(4)).current;
-  const h2 = useRef(new Animated.Value(10)).current;
-  const h3 = useRef(new Animated.Value(6)).current;
-  const h4 = useRef(new Animated.Value(12)).current;
+  const h1 = useRef(new Animated.Value(0.35)).current;
+  const h2 = useRef(new Animated.Value(0.7)).current;
+  const h3 = useRef(new Animated.Value(0.5)).current;
+  const h4 = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
-    if (!playing) {
-      h1.setValue(4);
-      h2.setValue(4);
-      h3.setValue(4);
-      h4.setValue(4);
-      return;
-    }
+    if (!playing) return;
     const createAnim = (val, min, max, duration) =>
       Animated.loop(
         Animated.sequence([
-          Animated.timing(val, { toValue: max, duration, useNativeDriver: false }),
-          Animated.timing(val, { toValue: min, duration, useNativeDriver: false }),
+          Animated.timing(val, { toValue: max, duration, useNativeDriver: true }),
+          Animated.timing(val, { toValue: min, duration, useNativeDriver: true }),
         ])
       );
-    const a1 = createAnim(h1, 4, 16, 300);
-    const a2 = createAnim(h2, 6, 20, 220);
-    const a3 = createAnim(h3, 4, 18, 260);
-    const a4 = createAnim(h4, 5, 14, 340);
+    const a1 = createAnim(h1, 0.25, 1, 300);
+    const a2 = createAnim(h2, 0.35, 1, 220);
+    const a3 = createAnim(h3, 0.25, 0.95, 260);
+    const a4 = createAnim(h4, 0.3, 0.8, 340);
     a1.start();
     a2.start();
     a3.start();
@@ -72,14 +72,16 @@ function Equalizer({ playing }) {
       a3.stop();
       a4.stop();
     };
-  }, [playing]);
+  }, [playing, h1, h2, h3, h4]);
+
+  if (!playing) return null;
 
   return (
     <View style={styles.eqWrap}>
-      <Animated.View style={[styles.eqBar, { height: h1 }]} />
-      <Animated.View style={[styles.eqBar, { height: h2 }]} />
-      <Animated.View style={[styles.eqBar, { height: h3 }]} />
-      <Animated.View style={[styles.eqBar, { height: h4 }]} />
+      <Animated.View style={[styles.eqBar, { transform: [{ scaleY: h1 }] }]} />
+      <Animated.View style={[styles.eqBar, { transform: [{ scaleY: h2 }] }]} />
+      <Animated.View style={[styles.eqBar, { transform: [{ scaleY: h3 }] }]} />
+      <Animated.View style={[styles.eqBar, { transform: [{ scaleY: h4 }] }]} />
     </View>
   );
 }
@@ -89,20 +91,27 @@ function Equalizer({ playing }) {
  * Fixed height so it can never push the participant strip out of the window.
  */
 export default function PartyTransport({ roomId }) {
-  const party = useSelector((s) => s.party);
+  // Fine-grained selectors: presence/chat/audio packets must NOT re-render
+  // this whole card (was `useSelector(s => s.party)` + Playhead setState 2Hz).
+  const current = useSelector((s) =>
+    s.party.currentIndex >= 0 ? s.party.queue[s.party.currentIndex] : null
+  );
+  const queueFirst = useSelector((s) => s.party.queue[0]);
+  const status = useSelector((s) => s.party.status);
+  const anchorPosMs = useSelector((s) => s.party.anchorPosMs);
+  const loadingQueueId = useSelector((s) => s.party.loadingQueueId);
   const dj = usePartyDj({ roomId });
-  const current = party.currentIndex >= 0 ? party.queue[party.currentIndex] : null;
   const { pos, dur } = usePlayhead();
   const pct = dur > 0 ? Math.min(100, (pos / dur) * 100) : 0;
-  const playing = party.status === 'playing';
+  const playing = status === 'playing';
 
   const resumeOrStart = () => {
-    const cur = current || party.queue[0];
+    const cur = current || queueFirst;
     if (!cur) return;
-    if (party.status === 'playing') {
+    if (status === 'playing') {
       dj.pause();
-    } else if (party.status === 'paused') {
-      dj.play(cur.queueId, party.anchorPosMs != null ? party.anchorPosMs : 0);
+    } else if (status === 'paused') {
+      dj.play(cur.queueId, anchorPosMs != null ? anchorPosMs : 0);
     } else {
       dj.load(cur.queueId);
     }
@@ -140,7 +149,7 @@ export default function PartyTransport({ roomId }) {
                 {dj.isDj ? 'You are the DJ' : 'Listening along'}
               </Text>
             </View>
-            {party.loadingQueueId ? (
+            {loadingQueueId ? (
               <View style={[styles.badge, styles.badgeSync]}>
                 <Text style={styles.badgeTextSync}>Syncing audio…</Text>
               </View>
@@ -245,7 +254,7 @@ const styles = StyleSheet.create({
   badgeTextSoft: { color: '#c9b6ff' },
   badgeTextSync: { fontSize: 9, fontWeight: '700', color: '#ffca28' },
 
-  /* Equalizer visualizer */
+  /* Equalizer visualizer — fixed height; bars scale from the bottom via scaleY */
   eqWrap: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -255,6 +264,7 @@ const styles = StyleSheet.create({
   },
   eqBar: {
     width: 3,
+    height: 20,
     backgroundColor: '#a78bfa',
     borderRadius: 1.5,
   },

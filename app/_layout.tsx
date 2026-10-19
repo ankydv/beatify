@@ -1,3 +1,5 @@
+import 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DefaultTheme as NavigationLightTheme, DarkTheme as NavigationDarkTheme,  ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
@@ -84,46 +86,48 @@ function RootLayoutNav() {
   const theme = colorScheme === 'dark' ? PaperDarkTheme : PaperLightTheme;
 
   return (
-    <ClerkProvider tokenCache={tokenCache} publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}>
-      <Provider store={store}>
-        <StatusBar translucent />
-        <PaperProvider theme={theme} >
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : LightTheme}>
-            <Stack
-              screenOptions={{
-                headerStyle: {
-                  backgroundColor: theme.colors.background,
-                },
-                headerTintColor: theme.colors.onBackground,
-                headerTitleStyle: {
-                  fontWeight: "600",
-                },
-              }}
-            >
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="player" options={{ headerShown: false }} />
-              <Stack.Screen name="voiceRoom" options={{ headerShown: false }} />
-              <Stack.Screen name="album" options={{ headerShown: false }} />
-              <Stack.Screen name="playlist" options={{ headerShown: false }} />
-              <Stack.Screen name="artist" options={{ headerShown: false }} />
-              <Stack.Screen name="notification.click" options={{ headerShown: false }} />
-              <Stack.Screen name="updater" options={{ headerShown: false }} />
-              <Stack.Screen name="addToPlaylist" options={{ headerShown: true, title: "Add To Playlists",
-                 presentation: "modal", // makes it slide up like a modal
-                 animation: "slide_from_bottom",
-              }} />
-              <Stack.Screen name="offline-library"/>
-            </Stack>
-            <EventListeners />
-            {/* Party room RUNTIME — must outlive the room screen so back can
-                minimise the room instead of leaving it. */}
-            <PartyHost />
-            <GlobalModal />
-            <GlobalChatManager />
-            <GlobalChatNotification />
-          </ThemeProvider>
-        </PaperProvider>
-      </Provider>
-    </ClerkProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ClerkProvider tokenCache={tokenCache} publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+        <Provider store={store}>
+          <StatusBar translucent />
+          <PaperProvider theme={theme} >
+            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : LightTheme}>
+              <Stack
+                screenOptions={{
+                  headerStyle: {
+                    backgroundColor: theme.colors.background,
+                  },
+                  headerTintColor: theme.colors.onBackground,
+                  headerTitleStyle: {
+                    fontWeight: "600",
+                  },
+                }}
+              >
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="player" options={{ headerShown: false }} />
+                <Stack.Screen name="voiceRoom" options={{ headerShown: false }} />
+                <Stack.Screen name="album" options={{ headerShown: false }} />
+                <Stack.Screen name="playlist" options={{ headerShown: false }} />
+                <Stack.Screen name="artist" options={{ headerShown: false }} />
+                <Stack.Screen name="notification.click" options={{ headerShown: false }} />
+                <Stack.Screen name="updater" options={{ headerShown: false }} />
+                <Stack.Screen name="addToPlaylist" options={{ headerShown: true, title: "Add To Playlists",
+                   presentation: "modal", // makes it slide up like a modal
+                   animation: "slide_from_bottom",
+                }} />
+                <Stack.Screen name="offline-library"/>
+              </Stack>
+              <EventListeners />
+              {/* Party room RUNTIME — must outlive the room screen so back can
+                  minimise the room instead of leaving it. */}
+              <PartyHost />
+              <GlobalModal />
+              <GlobalChatManager />
+              <GlobalChatNotification />
+            </ThemeProvider>
+          </PaperProvider>
+        </Provider>
+      </ClerkProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TrackPlayer, { useTrackPlayerEvents, Event } from "react-native-track-player";
 
 const useTrackProgress = () => {
@@ -30,15 +30,29 @@ const useTrackProgress = () => {
   useEffect(() => {
     fetchCurrentProgress();
   }, []); // Fetch progress when component mounts
+  // Throttle: native fires ProgressUpdated every 200ms (5Hz). Re-rendering
+  // the whole player tree at 5Hz janks everything — 2Hz is plenty for
+  // mm:ss labels + slider. Drop identical frames entirely.
+  const lastEmitRef = useRef(0);
   useTrackPlayerEvents([Event.PlaybackProgressUpdated], async (event) => {
     if (event.type === Event.PlaybackProgressUpdated) {
-      setProgress((prev) => ({
-        ...prev,
-        position: event.position,
-        duration: event.duration,
-        buffered: event.buffered,
-      }));
-    } 
+      const now = Date.now();
+      if (now - lastEmitRef.current < 500) return;
+      const position = event.position ?? 0;
+      const duration = event.duration ?? 0;
+      const buffered = event.buffered ?? 0;
+      setProgress((prev) => {
+        if (
+          Math.abs(prev.position - position) < 0.5 &&
+          prev.duration === duration &&
+          prev.buffered === buffered
+        ) {
+          return prev;
+        }
+        lastEmitRef.current = now;
+        return { ...prev, position, duration, buffered };
+      });
+    }
   });
 
   return { ...progress, setProgress };

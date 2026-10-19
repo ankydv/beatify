@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { View } from "react-native";
 import MusicListItem from "./songListItem";
 import { useDispatch } from "react-redux";
@@ -51,7 +51,7 @@ const MusicList = ({ dataset, isQueue, onPress, onMorePress }) => {
     }
   };
 
-  const handleItemPress = async (song) => {
+  const handleItemPress = useCallback(async (song) => {
     const isArtist = song.resultType === 'artist' || Boolean(song.subscribers);
     const isAlbum = song.resultType === 'album';
     const isPlaylist = song.resultType === 'playlist';
@@ -66,16 +66,16 @@ const MusicList = ({ dataset, isQueue, onPress, onMorePress }) => {
     } else {
       handleDefaultPress(song);
     }
-  };
+  }, [onPress]);
 
-  const openSongMenu = (song) => {
+  const openSongMenu = useCallback((song) => {
     if (onMorePress) {
       onMorePress(song);
     } else {
       setSelectedSongForMenu(song);
       setMenuVisible(true);
     }
-  };
+  }, [onMorePress]);
 
   const formatArtists = (artists) => {
     if (!artists || artists.length === 0) return "";

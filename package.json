@@ -58,7 +58,8 @@
     "react-native-web": "~0.19.13",
     "react-native-webrtc": "^124.0.5",
     "react-redux": "^9.1.2",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "react-native-gesture-handler": "~2.20.2"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

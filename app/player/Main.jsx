@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { StyleSheet, Text, TouchableOpacity, View, Image, Dimensions } from "react-native";
 import Lyrics from "./Lyrics";
 import LyricsToggleButton from "../../components/LyricsToggleButton";
@@ -30,10 +30,12 @@ const Main = ({setIsQueueVisible}) => {
   const { handleTogglePlayback } = useAudioControls();
   const dispatch = useDispatch();
 
-  const { metadata, lyrics, currentTrack } = useSelector((state) => state.audio);
+  const metadata = useSelector((state) => state.audio.metadata);
+  const lyrics = useSelector((state) => state.audio.lyrics);
+  const currentTrack = useSelector((state) => state.audio.currentTrack);
   const [isLyricsVisible, setIsLyricsVisible] = useState(true);
-  const md = new Metadata(metadata);
-  const title = md.getTitle();
+  const md = useMemo(() => new Metadata(metadata), [metadata]);
+  const title = useMemo(() => md.getTitle(), [md]);
   const theme = useTheme();
   // NEW: Get offline hook
   const { getOfflineTrack } = useOfflineTrack();

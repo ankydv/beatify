@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import {
   View,
   ScrollView,
@@ -23,6 +23,105 @@ import { socket } from '@/configs/socket';
 import { setActiveChatId, markChatAsRead } from '@/services/chatStorage.service';
 
 import { useFriends } from '@/hooks/friends.hooks';
+
+// ---- Memoized bubbles: typing in the input (chatInputText state) must NOT
+// re-render every mounted bubble. Same for status ticks + invite cards.
+const StatusTick = memo(function StatusTick({ status, read }) {
+  const s = status || (read ? 'seen' : 'sent');
+  if (s === 'sending') {
+    return <Icon name="clock-outline" size={11} color="rgba(255,255,255,0.6)" style={styles.statusTick} />;
+  }
+  if (s === 'seen') {
+    return <Icon name="check-all" size={13} color="#00E5FF" style={styles.statusTick} />;
+  }
+  if (s === 'delivered') {
+    return <Icon name="check-all" size={13} color="rgba(255,255,255,0.85)" style={styles.statusTick} />;
+  }
+  return <Icon name="check" size={12} color="rgba(255,255,255,0.7)" style={styles.statusTick} />;
+});
+
+const ChatBubble = memo(function ChatBubble({ msg, isMe, bubbleBg, bubbleTextColor, onFollowRoom }) {
+  const time = useMemo(() => {
+    if (!msg.createdAt) return '';
+    try {
+      return new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return '';
+    }
+  }, [msg.createdAt]);
+
+  const isJamInvite = msg.type === 'jam_invite' || Boolean(msg.roomId);
+  if (isJamInvite) {
+    return (
+      <View
+        style={[
+          styles.inviteCardWrapper,
+          isMe ? styles.inviteCardMe : styles.inviteCardOther,
+        ]}
+      >
+        <LinearGradient
+          colors={isMe ? ['#8A2387', '#E94057'] : ['#1F1C2C', '#928DAB']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.inviteCardGradient}
+        >
+          <View style={styles.inviteCardHeader}>
+            <Icon name="music-box-multiple" size={18} color="#FFFFFF" />
+            <Text style={styles.inviteCardBadge}>PARTY ROOM INVITE 🎧</Text>
+          </View>
+          <Text style={styles.inviteCardTitle} numberOfLines={2}>
+            {msg.roomTitle || `Party Room #${msg.roomId}`}
+          </Text>
+          <Text style={styles.inviteCardCode}>Room Code: #{msg.roomId}</Text>
+
+          <TouchableOpacity
+            style={styles.inviteJoinButton}
+            onPress={() => onFollowRoom?.(msg.roomId)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.inviteJoinButtonText}>Join Jam Room 🚀</Text>
+            <Icon name="arrow-right-circle" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
+          </TouchableOpacity>
+
+          <View style={styles.inviteMetaRow}>
+            <Text style={styles.inviteTimeText}>{time}</Text>
+            {isMe && <StatusTick status={msg.status} read={msg.read} />}
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  }
+
+  if (isMe) {
+    return (
+      <View style={styles.chatBubbleMeContainer}>
+        <LinearGradient
+          colors={['#8A2387', '#E94057']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.chatBubbleGradientMe}
+        >
+          <Text style={styles.chatBubbleTextMe}>{msg.message}</Text>
+          <View style={styles.bubbleMetaMe}>
+            <Text style={styles.bubbleTimeMe}>{time}</Text>
+            <StatusTick status={msg.status} read={msg.read} />
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.chatBubbleOther, { backgroundColor: bubbleBg }]}>
+      <Text style={[styles.chatBubbleTextOther, { color: bubbleTextColor }]}>
+        {msg.message}
+      </Text>
+      <View style={styles.bubbleMetaOther}>
+        <Text style={styles.bubbleTimeOther}>{time}</Text>
+      </View>
+    </View>
+  );
+});
 
 export default function ChatScreen() {
   const router = useRouter();
@@ -66,13 +165,30 @@ export default function ChatScreen() {
   const handledParamFriendIdRef = useRef(null);
   const [showScrollBottomHint, setShowScrollBottomHint] = useState(false);
 
-  const handleCloseConversation = () => {
+  // Follow friend into their active party room
+  const handleFollowRoom = useCallback((roomId) => {
+    if (!roomId) return;
+    router.push({
+      pathname: 'voiceRoom',
+      params: { roomId: String(roomId) },
+    });
+  }, [router]);
+
+  // Send message
+  const handleSendMessage = useCallback(async () => {
+    if (!chatInputText.trim()) return;
+    const msg = chatInputText.trim();
+    setChatInputText('');
+    await sendChatMessage(msg);
+  }, [chatInputText, sendChatMessage]);
+
+  const handleCloseConversation = useCallback(() => {
     closeChat();
     handledParamFriendIdRef.current = null;
     if (paramFriendId) {
       router.setParams({ friendId: '' });
     }
-  };
+  }, [closeChat, paramFriendId, router]);
 
   const handleLoadOlder = async () => {
     if (!hasMoreOlder || loadingOlder) return;
@@ -209,56 +325,33 @@ export default function ChatScreen() {
     }
   };
 
-  // Follow friend into their active party room
-  const handleFollowRoom = (roomId) => {
-    if (!roomId) return;
-    router.push({
-      pathname: 'voiceRoom',
-      params: { roomId: String(roomId) },
-    });
-  };
-
-  // Send message
-  const handleSendMessage = async () => {
-    if (!chatInputText.trim()) return;
-    const msg = chatInputText.trim();
-    setChatInputText('');
-    await sendChatMessage(msg);
-  };
-
   const filteredFriends = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return friends;
     return friends.filter((f) => (f.name || '').toLowerCase().includes(q));
   }, [friends, searchQuery]);
 
+  // Throttled via rAF: onScroll fires every frame while scrolling; writing
+  // refs + conditional setState directly janks the MiniBar native drag.
+  const scrollTickingRef = useRef(false);
+  const handleConversationScroll = useCallback((e) => {
+    if (scrollTickingRef.current) return;
+    scrollTickingRef.current = true;
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const y = contentOffset.y;
+    const paddingToBottom = 220;
+    const isClose = contentSize.height - (layoutMeasurement.height + y) <= paddingToBottom;
+    requestAnimationFrame(() => {
+      scrollTickingRef.current = false;
+      currentScrollYRef.current = y;
+      isNearBottomRef.current = isClose;
+      if (isClose) setShowScrollBottomHint((prev) => (prev ? false : prev));
+    });
+  }, []);
+
   const liveFriends = useMemo(() => {
     return friends.filter((f) => f.isLiveInRoom && f.roomInfo);
   }, [friends]);
-
-  const formatMsgTime = (timestamp) => {
-    if (!timestamp) return '';
-    try {
-      const d = new Date(timestamp);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
-      return '';
-    }
-  };
-
-  const renderStatusTick = (msg) => {
-    const status = msg.status || (msg.read ? 'seen' : 'sent');
-    if (status === 'sending') {
-      return <Icon name="clock-outline" size={11} color="rgba(255,255,255,0.6)" style={styles.statusTick} />;
-    }
-    if (status === 'seen') {
-      return <Icon name="check-all" size={13} color="#00E5FF" style={styles.statusTick} />;
-    }
-    if (status === 'delivered') {
-      return <Icon name="check-all" size={13} color="rgba(255,255,255,0.85)" style={styles.statusTick} />;
-    }
-    return <Icon name="check" size={12} color="rgba(255,255,255,0.7)" style={styles.statusTick} />;
-  };
 
   // -------------------------------------------------------------
   // DEDICATED FULL-SCREEN CHAT CONVERSATION VIEW (NOT A MODAL)
@@ -349,17 +442,8 @@ export default function ChatScreen() {
               }
               prevContentHeightRef.current = newHeight;
             }}
-            onScroll={(e) => {
-              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-              currentScrollYRef.current = contentOffset.y;
-              const paddingToBottom = 220;
-              const isClose = contentSize.height - (layoutMeasurement.height + contentOffset.y) <= paddingToBottom;
-              isNearBottomRef.current = isClose;
-              if (isClose && showScrollBottomHint) {
-                setShowScrollBottomHint(false);
-              }
-            }}
-            scrollEventThrottle={16}
+            onScroll={handleConversationScroll}
+            scrollEventThrottle={32}
           >
             {/* Pull down / tap to load older messages indicator */}
             {hasMoreOlder && (
@@ -419,82 +503,17 @@ export default function ChatScreen() {
               </View>
             ) : (
               chatMessages.map((msg, idx) => {
+                const mId = msg.uuid || msg._id || `${msg.senderId}-${msg.createdAt}-${idx}`;
                 const isMe = msg.senderId === user?.id;
-                const isJamInvite = msg.type === 'jam_invite' || Boolean(msg.roomId);
-
-                if (isJamInvite) {
-                  return (
-                    <View
-                      key={msg._id || idx}
-                      style={[
-                        styles.inviteCardWrapper,
-                        isMe ? styles.inviteCardMe : styles.inviteCardOther,
-                      ]}
-                    >
-                      <LinearGradient
-                        colors={isMe ? ['#8A2387', '#E94057'] : ['#1F1C2C', '#928DAB']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.inviteCardGradient}
-                      >
-                        <View style={styles.inviteCardHeader}>
-                          <Icon name="music-box-multiple" size={18} color="#FFFFFF" />
-                          <Text style={styles.inviteCardBadge}>PARTY ROOM INVITE 🎧</Text>
-                        </View>
-                        <Text style={styles.inviteCardTitle} numberOfLines={2}>
-                          {msg.roomTitle || `Party Room #${msg.roomId}`}
-                        </Text>
-                        <Text style={styles.inviteCardCode}>Room Code: #{msg.roomId}</Text>
-
-                        <TouchableOpacity
-                          style={styles.inviteJoinButton}
-                          onPress={() => handleFollowRoom(msg.roomId)}
-                          activeOpacity={0.85}
-                        >
-                          <Text style={styles.inviteJoinButtonText}>Join Jam Room 🚀</Text>
-                          <Icon name="arrow-right-circle" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
-                        </TouchableOpacity>
-
-                        <View style={styles.inviteMetaRow}>
-                          <Text style={styles.inviteTimeText}>{formatMsgTime(msg.createdAt)}</Text>
-                          {isMe && renderStatusTick(msg)}
-                        </View>
-                      </LinearGradient>
-                    </View>
-                  );
-                }
-
-                if (isMe) {
-                  return (
-                    <View key={msg._id || idx} style={styles.chatBubbleMeContainer}>
-                      <LinearGradient
-                        colors={['#8A2387', '#E94057']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.chatBubbleGradientMe}
-                      >
-                        <Text style={styles.chatBubbleTextMe}>{msg.message}</Text>
-                        <View style={styles.bubbleMetaMe}>
-                          <Text style={styles.bubbleTimeMe}>{formatMsgTime(msg.createdAt)}</Text>
-                          {renderStatusTick(msg)}
-                        </View>
-                      </LinearGradient>
-                    </View>
-                  );
-                }
-
                 return (
-                  <View
-                    key={msg._id || idx}
-                    style={[styles.chatBubbleOther, { backgroundColor: theme.colors.elevation.level2 }]}
-                  >
-                    <Text style={[styles.chatBubbleTextOther, { color: theme.colors.onSurface }]}>
-                      {msg.message}
-                    </Text>
-                    <View style={styles.bubbleMetaOther}>
-                      <Text style={styles.bubbleTimeOther}>{formatMsgTime(msg.createdAt)}</Text>
-                    </View>
-                  </View>
+                  <ChatBubble
+                    key={mId}
+                    msg={msg}
+                    isMe={isMe}
+                    bubbleBg={theme.colors.elevation.level2}
+                    bubbleTextColor={theme.colors.onSurface}
+                    onFollowRoom={handleFollowRoom}
+                  />
                 );
               })
             )}

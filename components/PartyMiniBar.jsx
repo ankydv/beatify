@@ -1,212 +1,209 @@
-import React, { useEffect, useRef, memo } from 'react';
+import React, { useEffect, useCallback, memo } from 'react';
 import {
-  Animated,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  PanResponder,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { router } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
-import { resetParty, setMinimised } from '@/state/slices/party.slice';
-import { usePartyPresence } from '@/hooks/partyPresence.hooks';
+import { resetParty, setMinimised, setMuted } from '@/state/slices/party.slice';
+import { socket } from '@/configs/socket';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withRepeat,
+  withSequence,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PILL_WIDTH = 200;
 const PILL_HEIGHT = 44;
 
 /**
  * Compact, movable floating pill shown while the voice room is minimised.
- * Optimized for lag-free 60fps dragging and zero redundant re-renders.
+ * 100% UI-thread dragging via react-native-gesture-handler + react-native-reanimated:
+ * runs at full 60/120fps regardless of JS thread load (e.g. heavy chat screens).
  */
 function PartyMiniBar() {
   const dispatch = useDispatch();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
-  // Fine-grained selectors prevent re-rendering on party chat/audio sync packets
+  // Fine-grained selectors to prevent re-rendering on unneeded state changes
   const roomId = useSelector((s) => s.party.roomId);
   const minimised = useSelector((s) => s.party.minimised);
   const connected = useSelector((s) => s.party.connected);
-  const currentSong = useSelector((s) =>
-    s.party.currentIndex >= 0 ? s.party.queue[s.party.currentIndex] : null
+  const songTitle = useSelector((s) =>
+    s.party.currentIndex >= 0 ? s.party.queue[s.party.currentIndex]?.title : null
   );
   const participantCount = useSelector((s) => s.party.participants?.length ?? 0);
-  const { muted, toggleMute } = usePartyPresence();
+  const muted = useSelector((s) => s.party.muted);
 
-  // ---- Floating position (drag state lives entirely in refs: zero re-renders) ----
-  const DEFAULT_POS = {
-    x: SCREEN_WIDTH - PILL_WIDTH - 16,
-    y: 110,
-  };
-  // useState initializer = guaranteed single creation, never null (unlike
-  // useRef(null) + render-time assignment which leaves a null window).
-  const [pan] = React.useState(() => new Animated.ValueXY({ ...DEFAULT_POS }));
-  const panRef = useRef(null);
-  panRef.current = pan;
-  // Plain-object ref with a REAL initial value so `.current.x` can never throw.
-  const basePosRef = useRef({ ...DEFAULT_POS });
+  // Position shared values on UI thread
+  const initialX = Math.max(8, screenWidth - PILL_WIDTH - 16);
+  const initialY = 110;
+  const translateX = useSharedValue(initialX);
+  const translateY = useSharedValue(initialY);
+  const startX = useSharedValue(initialX);
+  const startY = useSharedValue(initialY);
 
-  // Fresh window metrics per call => rotation-safe, no extra re-renders.
-  const clampPos = (x, y) => {
-    const { width: w, height: h } = Dimensions.get('window');
-    return {
-      x: Math.min(Math.max(x, 8), Math.max(8, w - PILL_WIDTH - 8)),
-      y: Math.min(Math.max(y, 50), Math.max(50, h - 120)),
-    };
-  };
-
-  // Pulse animation for LIVE indicator
-  const [pulse] = React.useState(() => new Animated.Value(0.45));
+  // Pulse animation for LIVE indicator - running 100% on the UI thread
+  const pulse = useSharedValue(0.45);
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 750, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.45, duration: 750, useNativeDriver: true }),
-      ])
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 750, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.45, { duration: 750, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
     );
-    loop.start();
-    return () => loop.stop();
   }, [pulse]);
 
-  const settleDrag = (gestureState) => {
-    const base = basePosRef.current ?? DEFAULT_POS;
-    const pv = panRef.current ?? pan;
-    const raw = {
-      x: base.x + (gestureState?.dx ?? 0),
-      y: base.y + (gestureState?.dy ?? 0),
-    };
-    const dropped = clampPos(raw.x, raw.y);
-    basePosRef.current = dropped; // commit first: survives interruptions
-    pv.setValue(raw); // restart spring from finger-lift spot
-    Animated.spring(pv, {
-      toValue: dropped,
-      useNativeDriver: false,
-      friction: 7,
-      tension: 40,
-    }).start();
-  };
-  const panResponderRef = useRef(null);
-  if (panResponderRef.current == null) {
-    panResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onStartShouldSetPanResponderCapture: () => false,
+  const liveDotAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: connected ? pulse.value : 0.4,
+  }));
 
-      // Capture drag movement before inner TouchableOpacity handles it
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return (
-          Math.abs(gestureState?.dx ?? 0) > 3 || Math.abs(gestureState?.dy ?? 0) > 3
-        );
-      },
-      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-        return (
-          Math.abs(gestureState?.dx ?? 0) > 3 || Math.abs(gestureState?.dy ?? 0) > 3
-        );
-      },
+  // Re-clamp positions if screen dimensions change (e.g., orientation change)
+  useEffect(() => {
+    const minX = 8;
+    const maxX = Math.max(8, screenWidth - PILL_WIDTH - 8);
+    const minY = 50;
+    const maxY = Math.max(50, screenHeight - 120);
 
-      onPanResponderGrant: () => {
-        // Kill any in-flight edge-snap spring, then anchor the new drag at
-        // the last COMMITTED drop point. No offsets, no listener values.
-        const pv = panRef.current ?? pan;
-        const base = basePosRef.current ?? DEFAULT_POS;
-        pv.stopAnimation();
-        pv.setValue({ x: base.x, y: base.y });
-      },
+    if (translateX.value > maxX || translateX.value < minX) {
+      translateX.value = withSpring(Math.min(Math.max(translateX.value, minX), maxX));
+    }
+    if (translateY.value > maxY || translateY.value < minY) {
+      translateY.value = withSpring(Math.min(Math.max(translateY.value, minY), maxY));
+    }
+  }, [screenWidth, screenHeight, translateX, translateY]);
 
-      // Manual setValue (not Animated.event) so the drop point can be derived
-      // from the same live gestureState deltas on release.
-      onPanResponderMove: (_, gestureState) => {
-        const pv = panRef.current ?? pan;
-        const base = basePosRef.current ?? DEFAULT_POS;
-        pv.setValue({
-          x: base.x + (gestureState?.dx ?? 0),
-          y: base.y + (gestureState?.dy ?? 0),
-        });
-      },
+  // UI-thread Pan gesture (worklets only: zero JS thread interaction during movement)
+  const panGesture = Gesture.Pan()
+    .minDistance(4)
+    .onStart(() => {
+      'worklet';
+      startX.value = translateX.value;
+      startY.value = translateY.value;
+    })
+    .onUpdate((e) => {
+      'worklet';
+      translateX.value = startX.value + e.translationX;
+      translateY.value = startY.value + e.translationY;
+    })
+    .onEnd((e) => {
+      'worklet';
+      const minX = 8;
+      const maxX = Math.max(8, screenWidth - PILL_WIDTH - 8);
+      const minY = 50;
+      const maxY = Math.max(50, screenHeight - 120);
 
-      onPanResponderRelease: (_, gestureState) => {
-        settleDrag(gestureState);
-      },
+      // Project slightly with velocity for natural momentum feel, then clamp
+      const targetRawX = translateX.value + e.velocityX * 0.05;
+      const targetRawY = translateY.value + e.velocityY * 0.05;
 
-      onPanResponderTerminate: (_, gestureState) => {
-        // OS interruption (e.g. incoming call gesture) — settle, don't snap back.
-        settleDrag(gestureState);
-      },
+      const clampedX = Math.min(Math.max(targetRawX, minX), maxX);
+      const clampedY = Math.min(Math.max(targetRawY, minY), maxY);
 
-      onPanResponderTerminationRequest: () => false,
-      onShouldBlockNativeResponder: () => true,
+      translateX.value = withSpring(clampedX, {
+        damping: 18,
+        stiffness: 160,
+        mass: 0.8,
+      });
+      translateY.value = withSpring(clampedY, {
+        damping: 18,
+        stiffness: 160,
+        mass: 0.8,
+      });
     });
-  }
-  const panResponder = panResponderRef.current;
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+    ],
+  }));
+
+  const toggleMute = useCallback(() => {
+    const next = !muted;
+    dispatch(setMuted(next));
+    if (roomId && socket?.connected) {
+      try {
+        socket.emit('party:reaction', {
+          roomId,
+          kind: 'presence',
+          value: { muted: next },
+        });
+      } catch (e) {}
+    }
+  }, [dispatch, roomId, muted]);
+
+  const expand = useCallback(() => {
+    dispatch(setMinimised(false));
+    router.push({ pathname: 'voiceRoom', params: { roomId } });
+  }, [dispatch, roomId]);
+
+  const leave = useCallback(() => {
+    dispatch(resetParty());
+  }, [dispatch]);
 
   if (!roomId || !minimised) return null;
 
-  const expand = () => {
-    dispatch(setMinimised(false));
-    router.push({ pathname: 'voiceRoom', params: { roomId } });
-  };
-
-  const leave = () => {
-    dispatch(resetParty());
-  };
-
   return (
-    <Animated.View
-      {...panResponder.panHandlers}
-      renderToHardwareTextureAndroid
-      style={[
-        styles.floatingContainer,
-        {
-          transform: pan.getTranslateTransform(),
-        },
-      ]}
-    >
-      <View style={styles.pillCard}>
-        {/* Drag handle */}
-        <View style={styles.dragGrip}>
-          <Icon name="drag-vertical" size={16} color="rgba(255,255,255,0.5)" />
-        </View>
-
-        {/* Tap area to expand */}
-        <TouchableOpacity style={styles.expandArea} onPress={expand} activeOpacity={0.8}>
-          <Animated.View
-            style={[
-              styles.liveDot,
-              { opacity: connected ? pulse : 0.4 },
-              !connected && styles.liveDotOff,
-            ]}
-          />
-          <View style={styles.textWrap}>
-            <Text style={styles.roomText} numberOfLines={1}>
-              {currentSong?.title || `Room #${roomId}`}
-            </Text>
-            <Text style={styles.subText} numberOfLines={1}>
-              {participantCount} {participantCount === 1 ? 'peer' : 'peers'} · Live
-            </Text>
+    <GestureDetector gesture={panGesture}>
+      <Animated.View style={[styles.floatingContainer, animatedStyle]}>
+        <View style={styles.pillCard}>
+          {/* Drag handle */}
+          <View style={styles.dragGrip}>
+            <Icon name="drag-vertical" size={16} color="rgba(255,255,255,0.5)" />
           </View>
-        </TouchableOpacity>
 
-        {/* Quick controls */}
-        <View style={styles.controlsRow}>
-          <TouchableOpacity
-            onPress={toggleMute}
-            style={[styles.actionBtn, muted && styles.actionBtnDanger]}
-            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-          >
-            <Icon name={muted ? 'microphone-off' : 'microphone'} size={14} color="#FFFFFF" />
+          {/* Tap area to expand */}
+          <TouchableOpacity style={styles.expandArea} onPress={expand} activeOpacity={0.8}>
+            <Animated.View
+              style={[
+                styles.liveDot,
+                liveDotAnimatedStyle,
+                !connected && styles.liveDotOff,
+              ]}
+            />
+            <View style={styles.textWrap}>
+              <Text style={styles.roomText} numberOfLines={1}>
+                {songTitle || `Room #${roomId}`}
+              </Text>
+              <Text style={styles.subText} numberOfLines={1}>
+                {participantCount} {participantCount === 1 ? 'peer' : 'peers'} · Live
+              </Text>
+            </View>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={leave}
-            style={[styles.actionBtn, styles.actionBtnClose]}
-            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-          >
-            <Icon name="close" size={14} color="#FFFFFF" />
-          </TouchableOpacity>
+          {/* Quick controls */}
+          <View style={styles.controlsRow}>
+            <TouchableOpacity
+              onPress={toggleMute}
+              style={[styles.actionBtn, muted && styles.actionBtnDanger]}
+              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+            >
+              <Icon name={muted ? 'microphone-off' : 'microphone'} size={14} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={leave}
+              style={[styles.actionBtn, styles.actionBtnClose]}
+              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+            >
+              <Icon name="close" size={14} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 

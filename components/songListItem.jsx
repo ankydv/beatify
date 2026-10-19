@@ -1,11 +1,13 @@
-import React from "react";
+import React, { memo } from "react";
 import { Dimensions, Image, Pressable, StyleSheet, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Text, useTheme } from "react-native-paper";
 
 const textWidth = Dimensions.get('window').width - 100;
 
-const MusicListItem = ({onPress, imageUrl, title, subtitle, onMorePress, isQueue, index, resultType }) => {
+// memo: lists re-render parents on playback progress (200ms ticks) — without
+// this every row re-renders 5x/sec even when nothing about the song changed.
+const MusicListItem = memo(function MusicListItem({ onPress, imageUrl, title, subtitle, onMorePress, isQueue, index, resultType }) {
 
   const theme = useTheme();
   const isArtist = resultType === 'artist';
@@ -25,7 +27,7 @@ const MusicListItem = ({onPress, imageUrl, title, subtitle, onMorePress, isQueue
       </Pressable>
     </Pressable>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

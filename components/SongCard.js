@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text } from './Themed';
 
-const SongCard = ({ item, onPress }) => {
+// memo: horizontal rails re-render on parent progress ticks — keep thumbs cheap.
+const SongCard = memo(function SongCard({ item, onPress }) {
   if (!item) return null;
   const thumbUri =
     item.thumbnails?.[1]?.url ||
@@ -31,7 +32,7 @@ const SongCard = ({ item, onPress }) => {
       ) : null}
     </TouchableOpacity>
   );
-};
+});
 
 const styles = StyleSheet.create({
   card: {

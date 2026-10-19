@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,39 @@ const isEmojiOnly = (s) => {
   if (!t || t.length > 12) return false;
   return !/[A-Za-z0-9]/.test(t);
 };
+
+// memo: every new party message re-rendered the whole history; rows are static.
+const PartyRow = memo(function PartyRow({ item }) {
+  const mine = !!item.userId && item.userId === socket.id;
+  const name = item.userName || 'Guest';
+  const initial = String(name).trim().charAt(0).toUpperCase() || '?';
+  const isEmoji = isEmojiOnly(item.message);
+
+  return (
+    <View style={[styles.row, mine ? styles.rowMine : styles.rowTheirs]}>
+      {!mine ? (
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{initial}</Text>
+        </View>
+      ) : null}
+      <View style={{ maxWidth: MAX_BUBBLE }}>
+        {!mine ? <Text style={styles.senderText}>{name}</Text> : null}
+        <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
+          <Text
+            style={[
+              styles.messageText,
+              mine ? styles.messageMine : styles.messageTheirs,
+              isEmoji && styles.emojiText,
+            ]}
+          >
+            {item.message}
+          </Text>
+        </View>
+        <Text style={[styles.time, mine && styles.timeMine]}>{formatTime(item._ts)}</Text>
+      </View>
+    </View>
+  );
+});
 
 /**
  * Party chat — reads the message buffer from redux (owned by PartyHost) so
@@ -82,37 +115,7 @@ const ChatComponent = ({ roomId }) => {
     });
   }, [messages.length]);
 
-  const renderItem = ({ item }) => {
-    const mine = !!item.userId && item.userId === socket.id;
-    const name = item.userName || 'Guest';
-    const initial = String(name).trim().charAt(0).toUpperCase() || '?';
-    const isEmoji = isEmojiOnly(item.message);
-
-    return (
-      <View style={[styles.row, mine ? styles.rowMine : styles.rowTheirs]}>
-        {!mine ? (
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initial}</Text>
-          </View>
-        ) : null}
-        <View style={{ maxWidth: MAX_BUBBLE }}>
-          {!mine ? <Text style={styles.senderText}>{name}</Text> : null}
-          <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-            <Text
-              style={[
-                styles.messageText,
-                mine ? styles.messageMine : styles.messageTheirs,
-                isEmoji && styles.emojiText,
-              ]}
-            >
-              {item.message}
-            </Text>
-          </View>
-          <Text style={[styles.time, mine && styles.timeMine]}>{formatTime(item._ts)}</Text>
-        </View>
-      </View>
-    );
-  };
+  const renderItem = useCallback(({ item }) => <PartyRow item={item} />, []);
 
   return (
     <View style={styles.wrap}>
@@ -129,6 +132,9 @@ const ChatComponent = ({ roomId }) => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           windowSize={9}
+          initialNumToRender={15}
+          maxToRenderPerBatch={10}
+          removeClippedSubviews
         />
         {reversed.length === 0 ? (
           <View style={styles.emptyWrap} pointerEvents="none">
