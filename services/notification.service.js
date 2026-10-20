@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import { socket } from '@/configs/socket';
-import { registerFcmTokenApi } from '@/services/friend.service';
+import { registerFcmTokenApi, unregisterFcmTokenApi } from '@/services/friend.service';
 import {
   saveMessageLocally,
   getActiveChatId,
@@ -20,10 +20,38 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Shared key so the headless background task (which has no Clerk context)
+// can tell whether the user is signed in. Written by GlobalChatManager.
+export const AUTH_FLAG_KEY = '@beatify_auth_signed_in';
+
+export const setSignedInFlag = async (signedIn) => {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    await AsyncStorage.setItem(AUTH_FLAG_KEY, signedIn ? '1' : '0');
+  } catch (e) {}
+};
+
+export const getSignedInFlag = async () => {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    return (await AsyncStorage.getItem(AUTH_FLAG_KEY)) === '1';
+  } catch (e) {
+    return false;
+  }
+};
+
 // Define background notification task to wake the service upon background FCM push
 TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error, executionInfo }) => {
   if (error) {
     console.warn('[TaskManager] Background notification task error:', error);
+    return;
+  }
+
+  // CRITICAL: never store messages when logged out. The OS may still deliver
+  // a queued FCM push after logout — drop it on the floor.
+  try {
+    if (!(await getSignedInFlag())) return;
+  } catch (e) {
     return;
   }
 
@@ -140,4 +168,33 @@ export async function registerPushNotifications(token = null) {
     console.warn('[Notifications] registerPushNotifications error:', err?.message || err);
     return null;
   }
+}
+
+/**
+ * Best-effort logout cleanup: tell the backend to stop sending FCM pushes
+ * for this device, and silence any already-displayed chat notifications.
+ * Never throws — logout must never hang on this.
+ */
+export async function unregisterPushNotifications(token = null) {
+  try {
+    let pushToken = null;
+    try {
+      const deviceToken = await Notifications.getDevicePushTokenAsync();
+      pushToken = deviceToken?.data;
+    } catch (e) {}
+    if (pushToken) {
+      try {
+        socket.emit('fcm:unregister', { fcmToken: pushToken });
+      } catch (e) {}
+      try {
+        await unregisterFcmTokenApi({ fcmToken: pushToken, token });
+      } catch (e) {}
+    }
+  } catch (e) {}
+  try {
+    await Notifications.dismissAllNotificationsAsync();
+  } catch (e) {}
+  try {
+    await Notifications.setBadgeCountAsync(0);
+  } catch (e) {}
 }

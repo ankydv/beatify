@@ -253,6 +253,11 @@ export async function fetchLatestPartyState(roomId, dispatch) {
  */
 export async function teardownPartyPlayer(dispatch) {
   clearScheduled();
+  // pause() BEFORE reset(): reset() alone does not reliably stop audio that
+  // already started — this is the "song keeps playing after disconnect" bug.
+  try {
+    await TrackPlayer.pause();
+  } catch (e) {}
   try {
     await TrackPlayer.reset();
   } catch (e) {}

@@ -3,9 +3,9 @@ import { AppState } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
-import { socket, ensureSocketConnected } from '@/configs/socket';
+import { socket, ensureSocketConnected, disconnectSocket } from '@/configs/socket';
 import { sweepMessagesApi, ackMessagesApi } from '@/services/friend.service';
-import { registerPushNotifications } from '@/services/notification.service';
+import { registerPushNotifications, unregisterPushNotifications, setSignedInFlag } from '@/services/notification.service';
 import {
   saveMessageLocally,
   markOutgoingMessagesAsDelivered,
@@ -22,9 +22,17 @@ export default function GlobalChatManager() {
   getTokenRef.current = getToken;
   const userIdRef = useRef(user?.id);
   userIdRef.current = user?.id;
+  // Stable signed-in mirror for async callbacks (sweep responses, socket
+  // events) that may fire after logout — hooks above close over it.
+  const isSignedInRef = useRef(isSignedIn);
+  isSignedInRef.current = isSignedIn;
 
-  // Register push notifications (FCM & background task)
+  // Signed-in flag for the headless background FCM task (no Clerk context there),
+  // plus push register/unregister on login/logout.
+  // On logout: unregister FCM, silence notifications, sever the socket so no
+  // further chat events can be received or stored.
   useEffect(() => {
+    setSignedInFlag(!!isSignedIn);
     if (isSignedIn) {
       (async () => {
         try {
@@ -32,13 +40,24 @@ export default function GlobalChatManager() {
           await registerPushNotifications(token);
         } catch (e) {}
       })();
+    } else {
+      (async () => {
+        try {
+          await unregisterPushNotifications(null);
+        } catch (e) {}
+      })();
+      try {
+        disconnectSocket();
+      } catch (e) {}
     }
   }, [isSignedIn]);
 
   // Handle system notification tap (when user taps background notification)
+  // Logged-out taps are ignored — Chat/Party both render AuthGate anyway.
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
       try {
+        if (!isSignedIn) return;
         const rawData = response?.notification?.request?.content?.data;
         if (!rawData) return;
         let data = rawData;
@@ -58,10 +77,13 @@ export default function GlobalChatManager() {
     });
 
     return () => sub.remove();
-  }, [router]);
+  }, [router, isSignedIn]);
 
   // Process swept messages from Redis inbox, write to local device DB, and ACK to purge from Upstash
+  // All entry points double-check isSignedInRef — a sweep response or socket
+  // event arriving after logout must NEVER write to local storage or notify.
   const processSweptMessages = useCallback(async (messages) => {
+    if (!isSignedInRef.current) return;
     if (!Array.isArray(messages) || messages.length === 0) return;
     const writtenUuids = [];
     const myId = userIdRef.current;
@@ -100,8 +122,10 @@ export default function GlobalChatManager() {
   }, []);
 
   // Sweep pending messages from Redis inbox
+  // Uses isSignedInRef so a reconnect/foreground event racing logout can't
+  // pull messages for the previous user.
   const sweepInbox = useCallback(async () => {
-    if (!isSignedIn) return;
+    if (!isSignedInRef.current) return;
     try {
       await ensureSocketConnected();
       socket.emit('sweep_inbox', {}, async (res) => {
@@ -128,6 +152,7 @@ export default function GlobalChatManager() {
 
     const handleMessageReceived = async (msg) => {
       if (!alive || !msg) return;
+      if (!isSignedInRef.current) return;
       const myId = userIdRef.current;
       const senderId = msg.senderId;
       if (senderId && myId && senderId === myId) return;
@@ -209,6 +234,7 @@ export default function GlobalChatManager() {
 
     const handleRequestReceived = async (req) => {
       if (!alive || !req) return;
+      if (!isSignedInRef.current) return;
       const requesterName = req?.requesterName || 'A listener';
       const notifTitle = `${requesterName} 🤝`;
       const notifBody = 'Sent you a friend request to vibe together';
@@ -236,6 +262,7 @@ export default function GlobalChatManager() {
     };
 
     const handleSweepResponse = (data) => {
+      if (!isSignedInRef.current) return;
       if (alive && data?.messages) {
         processSweptMessages(data.messages);
       }
@@ -259,9 +286,10 @@ export default function GlobalChatManager() {
       } catch (err) {}
     })();
 
-    // Foreground listener: sweep when app comes to foreground
+    // Foreground listener: sweep when app comes to foreground (signed-in only)
     const appStateSub = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
+        if (!isSignedInRef.current) return;
         sweepInbox();
       }
     });

@@ -150,8 +150,18 @@ function PartyMiniBar() {
   }, [dispatch, roomId]);
 
   const leave = useCallback(() => {
+    // Explicit leave: drop socket membership FIRST (kills ghost-member audio),
+    // then wipe redux so the minibar unmounts immediately.
+    try {
+      socket.emit('leave-room', roomId ? { roomId } : {});
+    } catch (e) {}
+    try {
+      import('@/utils/partyPlayback.utils').then(({ teardownPartyPlayer }) => {
+        teardownPartyPlayer(dispatch).catch(() => {});
+      });
+    } catch (e) {}
     dispatch(resetParty());
-  }, [dispatch]);
+  }, [dispatch, roomId]);
 
   if (!roomId || !minimised) return null;
 

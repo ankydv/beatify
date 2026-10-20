@@ -123,4 +123,15 @@ export const registerFcmTokenApi = async ({ fcmToken, token } = {}) => {
   }
 };
 
+export const unregisterFcmTokenApi = async ({ fcmToken, token } = {}) => {
+  try {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const response = await friendApi.post('/messages/fcm-token/remove', { fcmToken }, { headers });
+    return response.data;
+  } catch (error) {
+    // Best-effort — logout must never hang on this.
+    return { success: false };
+  }
+};
+
 

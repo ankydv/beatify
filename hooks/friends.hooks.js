@@ -154,7 +154,9 @@ export const useFriends = () => {
   const sweepPendingMessages = useCallback(async () => {
     if (!isSignedIn) return;
     try {
-      await ensureSocketConnected();
+      const token = getTokenRef.current ? await getTokenRef.current() : null;
+      if (!token) return;
+      await ensureSocketConnected(() => Promise.resolve(token));
       socket.emit('sweep_inbox', {}, async (res) => {
         if (res?.success && Array.isArray(res.messages) && res.messages.length > 0) {
           await processSweptMessages(res.messages);
@@ -227,6 +229,7 @@ export const useFriends = () => {
 
   // Open dedicated chat with friend (loads last 20 messages)
   const openChat = async (friend) => {
+    if (!isSignedIn) return;
     const friendId = friend.friendId || friend.id;
     setActiveChatId(friendId);
     setDisplayLimit(20);

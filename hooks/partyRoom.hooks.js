@@ -36,7 +36,9 @@ function publishParticipants(dispatch, list) {
 export function usePartyRoom() {
   const dispatch = useDispatch();
   const roomId = useSelector((s) => s.party.roomId);
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn } = useAuth();
+  const isSignedInRef = useRef(isSignedIn);
+  isSignedInRef.current = isSignedIn;
 
   const mountedRef = useRef(true);
   const joinAttemptRef = useRef(0);
@@ -51,6 +53,7 @@ export function usePartyRoom() {
 
   const joinRoom = useCallback(async (target) => {
     if (!target || joinInFlightRef.current) return false;
+    if (!isSignedInRef.current) return false;
     if (joinedRoomRef.current === target && joinedSocketIdRef.current === socket.id) return true;
 
     const attempt = ++joinAttemptRef.current;
@@ -148,16 +151,33 @@ export function usePartyRoom() {
         socket.timeout(delay).emit('leave-room', { roomId: rid });
       } else if (socket.connected) {
         socket.emit('leave-room', { roomId: rid });
+      } else {
+        // Disconnected: queue the leave so the server drops our membership
+        // on next connect instead of keeping us a ghost member with audio.
+        try {
+          socket.once('connect', () => {
+            try { socket.emit('leave-room', { roomId: rid }); } catch (e) {}
+          });
+        } catch (e) {}
       }
     } catch (e) {}
     if (mountedRef.current) {
       dispatch(setParticipants([]));
+      dispatch(setConnected(false));
       dispatch(setJoining(false));
     }
+    // Stop room audio dead + restore personal track / clear mirror so no song
+    // or minibar lingers after disconnect. Fire-and-forget by design.
+    try {
+      import('@/utils/partyPlayback.utils').then(({ teardownPartyPlayer }) => {
+        teardownPartyPlayer(dispatch).catch(() => {});
+      });
+    } catch (e) {}
   }, [dispatch]);
 
   /** Re-announce if the socket reconnected and we silently lost membership. */
   const bootstrap = useCallback(async () => {
+    if (!isSignedInRef.current) return;
     const target = roomIdRef.current;
     if (!target) return;
     if (joinedRoomRef.current === target && joinedSocketIdRef.current === socket.id) return;
@@ -177,6 +197,16 @@ export function usePartyRoom() {
     } catch (e) {}
   }, [joinRoom]);
 
+  // Sign-out while inside a room: force full teardown (socket leave +
+  // player stop + UI reset). The leaveRoom() inside the roomId effect handles
+  // socket+redux, and usePartyPlayback's teardown stops audio; this makes the
+  // intent explicit so a token-less socket can't keep the party alive.
+  useEffect(() => {
+    if (!isSignedIn && roomIdRef.current) {
+      leaveRoom();
+    }
+  }, [isSignedIn, leaveRoom]);
+
   // Room changed: join the new room / leave the old one.
   useEffect(() => {
     if (!roomId) {
@@ -184,10 +214,11 @@ export function usePartyRoom() {
       if (mountedRef.current) dispatch(setJoinError(null));
       return undefined;
     }
+    if (!isSignedIn) return undefined;
     joinRoom(roomId);
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId]);
+  }, [roomId, isSignedIn]);
 
   // Socket lifecycle + participant roster + foreground re-join.
   useEffect(() => {

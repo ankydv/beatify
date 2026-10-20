@@ -9,6 +9,7 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import History from "../library/history";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Playlists from "../library/playlists";
+import store from "@/state/store";
 
 export default function TabTwoScreen() {
   const dispatch = useDispatch();
@@ -23,8 +24,36 @@ export default function TabTwoScreen() {
   const handleAuthPress = async () => {
     if (isSignedIn) {
       setIsLoading(true);
-      await signOut();
-      setIsLoading(false);
+      try {
+        // Full session teardown BEFORE Clerk signs out: leave any voice room
+        // (socket + audio + UI), sever socket auth, unregister FCM and silence
+        // notifications — so nothing chat/party survives logout.
+        try {
+          const { socket } = require('@/configs/socket');
+          try {
+            const rid = store.getState()?.party?.roomId;
+            socket.emit('leave-room', rid ? { roomId: rid } : {});
+          } catch (e) {}
+        } catch (e) {}
+        try {
+          const { teardownPartyPlayer } = require('@/utils/partyPlayback.utils');
+          await teardownPartyPlayer(store.dispatch).catch(() => {});
+        } catch (e) {}
+        try {
+          store.dispatch({ type: 'party/resetParty' });
+        } catch (e) {}
+        try {
+          const { unregisterPushNotifications } = require('@/services/notification.service');
+          await unregisterPushNotifications(null).catch(() => {});
+        } catch (e) {}
+        try {
+          const { disconnectSocket } = require('@/configs/socket');
+          disconnectSocket();
+        } catch (e) {}
+      } finally {
+        await signOut();
+        setIsLoading(false);
+      }
       return;
     }
     dispatch(openModal(<ClerkSignIn />));

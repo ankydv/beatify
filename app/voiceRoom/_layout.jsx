@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
+import { useAuth } from '@clerk/clerk-expo';
 import { socket } from '@/configs/socket';
 import LoadingIndicator from '@/components/LoadingIndicator';
 import DJPanel from './DJPanel';
@@ -49,6 +50,7 @@ const PartyRoom = () => {
   const navigation = useNavigation();
   const { roomId } = useLocalSearchParams();
   const party = useSelector((s) => s.party);
+  const { isSignedIn } = useAuth();
   const { muted, toggleMute, react } = usePartyPresence();
   const audioOutput = party.audioOutput || 'speaker';
   const muteIncoming = party.muteIncoming || false;
@@ -57,11 +59,21 @@ const PartyRoom = () => {
   const [showAudioDropdown, setShowAudioDropdown] = useState(false);
 
   // Register this room as ours — PartyHost does the actual joining.
+  // Never join when logged out; if we get signed out while inside, leave
+  // immediately (stops audio + clears UI) and bounce to the Party tab.
   useEffect(() => {
+    if (!isSignedIn) {
+      if (roomId || party?.roomId) {
+        resetAudioOutput().catch(() => {});
+        dispatch(resetParty());
+        router.replace('/(tabs)/party');
+      }
+      return undefined;
+    }
     if (roomId) dispatch(setRoom(roomId));
     dispatch(setMinimised(false));
     return undefined;
-  }, [dispatch, roomId]);
+  }, [dispatch, roomId, isSignedIn]);
 
   // Hardware back minimises the room; leaving is an explicit action.
   const minimize = () => {
@@ -84,6 +96,16 @@ const PartyRoom = () => {
   }, [dispatch, navigation]);
 
   const leave = () => {
+    // Explicit leave: drop socket membership FIRST so the server removes us
+    // even if redux teardown races; then stop audio + wipe UI state.
+    try {
+      socket.emit('leave-room', party?.roomId ? { roomId: party.roomId } : {});
+    } catch (e) {}
+    try {
+      import('@/utils/partyPlayback.utils').then(({ teardownPartyPlayer }) => {
+        teardownPartyPlayer(dispatch).catch(() => {});
+      });
+    } catch (e) {}
     resetAudioOutput().catch(() => {});
     dispatch(resetParty());
     if (router.canGoBack()) {

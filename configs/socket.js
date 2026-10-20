@@ -199,6 +199,19 @@ export const emitWithAck = (event, payload, timeoutMs = 8000) =>
 
 export const disconnectSocket = (manual = true) => {
   manualDisconnect = manual;
+  // Clear stale auth so a post-logout reconnect can never reuse the old
+  // user's token (this was letting logged-out devices keep receiving
+  // authenticated chat events / 401 loops).
+  try {
+    socket.auth = {};
+    if (socket.io?.opts) {
+      socket.io.opts.auth = {};
+      if (socket.io.opts.extraHeaders?.Authorization) {
+        const { Authorization, ...rest } = socket.io.opts.extraHeaders;
+        socket.io.opts.extraHeaders = rest;
+      }
+    }
+  } catch (e) {}
   if (socket.connected || socket.active) {
     socket.disconnect();
   }
