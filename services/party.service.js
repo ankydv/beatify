@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import TrackPlayer, { useTrackPlayerEvents, Event, State } from 'react-native-track-player';
 import { socket, emitWithAck, ensureSocketConnected } from '@/configs/socket';
-import { applyState, setLoading, resetParty } from '@/state/slices/party.slice';
+import { applyState, setLoading, setRole, resetParty } from '@/state/slices/party.slice';
 import { setCurrentTrack, setMetadata } from '@/state/slices/audio.slice';
 import useClockSync from '@/hooks/clockSync.hooks';
 import { usePartyEvents } from '@/hooks/partyEvents.hooks';
@@ -10,6 +10,7 @@ import { usePartyExtras, mirrorPartyTrack } from '@/hooks/partyExtras.hooks';
 import { usePartyFallback } from '@/hooks/partyFallback.hooks';
 import { loadPartyBundle, ensurePlaying, pauseParty, ensurePlayerReady, teardownPartyPlayer } from '@/utils/partyPlayback.utils';
 import { clearScheduled, applyRoomControlLock, selectIsListenerLocked } from '@/utils/partyPlayback.utils';
+import { consumeJamSeed, seedRoomFromPersonal, pausePersonalForIdleRoom } from '@/utils/partyPlayback.utils';
 import { resolveBundle } from '@/utils/partyDj.utils';
 
 /**
@@ -69,9 +70,34 @@ export function usePartyPlayback({ roomId, enabled = true }) {
         if (!alive) return;
         if (res?.success && res.state) {
           dispatch(applyState({ ...res.state, roomId }));
+          if (res.state?.djSocketId && socket?.id) {
+            dispatch(setRole(res.state.djSocketId === socket.id ? 'dj' : 'listener'));
+          }
           cmdSeqRef.current = res.state.cmdSeq || 0;
           const st = res.state;
           const bundle = st.currentIndex >= 0 ? st.queue?.[st.currentIndex] : null;
+          // SEAMLESS JAM: this device created the room moments ago while its
+          // own song was playing (player jam button / host-with-queue flow).
+          // The local player ALREADY has that song — do NOT reset/reload.
+          // Carry the personal track + upcoming queue into the room and just
+          // keep playing; dj:load echo comes back and is skipped too.
+          const jamSeed = consumeJamSeed();
+          // Derive DJ-ness from the hello payload alone (no require() — the
+          // socket module is already imported at the top of this file).
+          const roleAfterHello =
+            st?.djSocketId && socket?.id && st.djSocketId === socket.id ? 'dj' : null;
+          const isSeamlessHost =
+            !!jamSeed &&
+            (roleAfterHello === 'dj' || st?.role === 'dj') &&
+            (!bundle || String(bundle.videoId || '') === String(jamSeed.videoId || ''));
+          if (isSeamlessHost) {
+            if (socket?.id) dispatch(setRole(socket.id === st?.djSocketId || !st?.djSocketId ? 'dj' : 'listener'));
+            else dispatch(setRole('dj'));
+            // Fire-and-forget: queue-add + dj:load from the LIVE local
+            // position. Local audio never stops; listeners join the stream.
+            seedRoomFromPersonal(roomId).catch(() => {});
+            return;
+          }
           if (bundle) {
             // Mirror the current bundle into audio for EVERY server status
             // (playing | loading | paused | idle), so the player screen and the
@@ -172,6 +198,15 @@ export function usePartyPlayback({ roomId, enabled = true }) {
                 await pauseParty();
               } catch (err) {}
             }
+          } else {
+            // Idle room (no bundle / empty queue): TAKE OVER the shared
+            // player by pausing lingering personal audio. Reported bug was
+            // that the personal song kept playing when the room had nothing
+            // playing yet. Snapshot (taken above) restores it on leave.
+            // Seamless hosts already returned above — this is joiners only.
+            try {
+              await pausePersonalForIdleRoom();
+            } catch (e) {}
           }
         }
       } catch (e) {}

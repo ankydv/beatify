@@ -107,9 +107,11 @@ describe('roomOwnsAudio', () => {
     expect(roomOwnsAudio()).toBe(false);
   });
 
-  it('is false when only a personal track is loaded', () => {
+  it('is true even with only a personal track loaded (idle-room takeover)', () => {
+    // Reported bug: joining an empty room left personal audio playing.
+    // Any room membership now owns the shared player.
     joinRoom({ ownsAudio: false });
-    expect(roomOwnsAudio()).toBe(false);
+    expect(roomOwnsAudio()).toBe(true);
   });
 
   it('stays true for every room status, including when the DJ pauses', () => {
@@ -118,16 +120,44 @@ describe('roomOwnsAudio', () => {
       expect(roomOwnsAudio()).toBe(true);
     }
   });
+
+  it('stays false for the seamless-DJ seed so hosting never resets playback', async () => {
+    const utils = require('../partyPlayback.utils');
+    // Personal track playing + pending jam seed for the same video.
+    joinRoom({ role: 'dj', ownsAudio: false });
+    state.audio.currentTrack = { videoId: 'mine', title: 'Personal' };
+    utils.prepareJamSeed();
+    expect(utils.peekJamSeed()).toMatchObject({ videoId: 'mine' });
+    expect(roomOwnsAudio()).toBe(false);
+    expect(utils.consumeJamSeed()).toMatchObject({ videoId: 'mine' });
+    expect(utils.peekJamSeed()).toBeNull();
+    // After consuming the seed, the room owns audio again.
+    expect(roomOwnsAudio()).toBe(true);
+  });
+
+  it('pauses lingering personal audio for idle-room listeners', async () => {
+    joinRoom({ role: 'listener', status: 'idle', ownsAudio: false });
+    state.party.queue = [];
+    state.party.currentIndex = -1;
+    await expect(partyTogglePlayback()).resolves.toBe(true);
+    expect(TrackPlayer.pause).toHaveBeenCalled();
+    await expect(utils_pausePersonalForIdleRoom()).resolves.toBe(true);
+  });
 });
 
+async function utils_pausePersonalForIdleRoom() {
+  const utils = require('../partyPlayback.utils');
+  return utils.pausePersonalForIdleRoom();
+}
+
 describe('selectIsListenerLocked', () => {
-  it('locks listeners only, never the DJ', () => {
+  it('locks listeners only, never the DJ — even in idle rooms', () => {
     joinRoom({ role: 'listener' });
     expect(selectIsListenerLocked(state)).toBe(true);
     joinRoom({ role: 'dj' });
     expect(selectIsListenerLocked(state)).toBe(false);
     joinRoom({ role: 'listener', ownsAudio: false });
-    expect(selectIsListenerLocked(state)).toBe(false);
+    expect(selectIsListenerLocked(state)).toBe(true);
   });
 });
 

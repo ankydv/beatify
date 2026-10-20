@@ -11,6 +11,150 @@ import { resolveBundle, toArtists, toThumb } from '@/utils/partyDj.utils';
 let scheduledTimer = null;
 let playerReadyPromise = null;
 
+/**
+ * Pending seamless-jam seed.
+ * Set JUST BEFORE navigating into a newly-created room while personal audio
+ * is playing. Consumed once by usePartyPlayback's hello handler so the host's
+ * existing queue becomes the room queue WITHOUT stopping local playback.
+ */
+let pendingJamSeed = null;
+
+export function prepareJamSeed() {
+  try {
+    const a = store.getState()?.audio;
+    const track = a?.currentTrack;
+    if (!track || track?.isPartyTrack || !track?.videoId) {
+      pendingJamSeed = null;
+      return null;
+    }
+    pendingJamSeed = { videoId: track.videoId, createdAt: Date.now() };
+    return pendingJamSeed;
+  } catch (e) {
+    pendingJamSeed = null;
+    return null;
+  }
+}
+
+export function peekJamSeed() {
+  return pendingJamSeed;
+}
+
+export function consumeJamSeed() {
+  const s = pendingJamSeed;
+  pendingJamSeed = null;
+  return s;
+}
+
+/** True when a party bundle is the same song already playing locally. */
+function isSameVideoAsLocal(bundle) {
+  try {
+    const videoId = bundle?.videoId;
+    if (!videoId) return false;
+    const cur = store.getState()?.audio?.currentTrack;
+    return !!(cur?.videoId && String(cur.videoId) === String(videoId));
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Seamless host handoff: push the currently-playing personal track (+ the next
+ * few personal-queue tracks) into a fresh empty room and start room playback
+ * from the CURRENT local position — so the music never stops.
+ * Returns true when the room was seeded.
+ */
+export async function seedRoomFromPersonal(roomId) {
+  if (!roomId) return false;
+  let track = null;
+  let queueTracks = [];
+  try {
+    const a = store.getState()?.audio;
+    track = a?.currentTrack;
+    queueTracks = Array.isArray(a?.queue?.tracks) ? a.queue.tracks : [];
+  } catch (e) {}
+  if (!track || track?.isPartyTrack || !track?.videoId) return false;
+
+  let positionMs = 0;
+  try {
+    positionMs = Math.round((await TrackPlayer.getPosition()) * 1000) || 0;
+  } catch (e) {}
+  if (!Number.isFinite(positionMs) || positionMs < 0) positionMs = 0;
+
+  let bundle = null;
+  try {
+    bundle = await resolveBundle({
+      videoId: track.videoId,
+      title: track.title || track.name,
+      artists: track.artists,
+      artist: track.artist,
+      thumbnail: track.thumbnail,
+      thumbnails: track.thumbnails,
+      thumb: track.thumb,
+    });
+  } catch (e) {
+    return false;
+  }
+  if (!bundle?.url) return false;
+
+  let queueId = null;
+  try {
+    const res = await emitWithAck('dj:queue-add', { roomId, bundle });
+    if (!res?.success) return false;
+    queueId = res?.queueId || res?.item?.queueId || res?.track?.queueId || null;
+  } catch (e) {
+    return false;
+  }
+
+  // Best-effort: carry the next few personal-queue tracks into the room so the
+  // DJ's existing queue continues inside the party. Never blocks the handoff.
+  try {
+    const idx = queueTracks.findIndex((t) => String(t?.videoId) === String(track.videoId));
+    const upcoming = (idx >= 0 ? queueTracks.slice(idx + 1, idx + 6) : queueTracks.slice(0, 5)) || [];
+    for (const t of upcoming) {
+      if (!t?.videoId || String(t.videoId) === String(track.videoId)) continue;
+      try {
+        const b = await resolveBundle(t);
+        if (b?.url) await emitWithAck('dj:queue-add', { roomId, bundle: b });
+      } catch (e) {}
+    }
+  } catch (e) {}
+
+  if (queueId) {
+    try {
+      await emitWithAck('dj:load', {
+        roomId,
+        queueId,
+        positionMs,
+        playAtServerMs: Date.now() + 1500,
+      });
+    } catch (e) {}
+  }
+  return true;
+}
+
+/**
+ * Idle-room takeover: joining a room with NO bundle (idle / empty queue) must
+ * still take over the shared TrackPlayer — otherwise the user's personal song
+ * keeps playing over the room. Pause local audio; the snapshot taken on join
+ * restores it on leave via teardownPartyPlayer().
+ */
+export async function pausePersonalForIdleRoom() {
+  try {
+    const s = store.getState();
+    if (!s?.party?.roomId) return false;
+    const cur = s?.audio?.currentTrack;
+    if (cur?.isPartyTrack) return false;
+    if (!cur) return false;
+    await ensurePlayerReady();
+    try {
+      await TrackPlayer.pause();
+    } catch (e) {}
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 export function clearScheduled() {
   if (scheduledTimer) {
     clearTimeout(scheduledTimer);
@@ -188,7 +332,17 @@ export function isPartyDj() {
 export function roomOwnsAudio() {
   try {
     const s = store.getState();
-    return !!(s?.party?.roomId && s?.audio?.currentTrack?.isPartyTrack);
+    // Any room membership takes over the shared player — even an idle room
+    // with no bundle yet. This is the reported bug: joining an empty room
+    // left personal audio playing because ownership required a mirrored
+    // party track that only exists once the room has songs.
+    // Seamless-DJ exception: while WE are seeding a fresh room from our own
+    // personal playback (seed in-flight for our own video), ownership stays
+    // false so the room hello path skips the reset() + reload — the music
+    // keeps playing uninterrupted and just becomes the room's queue.
+    if (!s?.party?.roomId) return false;
+    if (pendingJamSeed && isSameVideoAsLocal({ videoId: pendingJamSeed.videoId })) return false;
+    return true;
   } catch (e) {
     return false;
   }
@@ -196,7 +350,7 @@ export function roomOwnsAudio() {
 
 /** Pure selector form (usable with `useSelector`). */
 export function selectIsListenerLocked(s) {
-  return !!(s?.party?.roomId && s?.audio?.currentTrack?.isPartyTrack && s?.party?.role !== 'dj');
+  return !!(s?.party?.roomId && s?.party?.role !== 'dj');
 }
 
 /** True when the local device is a LISTENER whose player is owned by a room. */
@@ -301,7 +455,16 @@ export async function partyTogglePlayback() {
   const p = store.getState()?.party;
   const cur = currentPartyTrack();
   try {
-    if (p.role !== 'dj') return true; // swallow: listeners can't control room audio
+    if (p.role !== 'dj') {
+      // Idle room with no bundle: listener just pauses their lingering
+      // personal audio so joining an empty room silences local playback.
+      if (!cur) {
+        try {
+          await TrackPlayer.pause();
+        } catch (e) {}
+      }
+      return true; // swallow: listeners can't control room audio
+    }
     if (p.status === 'playing') {
       let pos = p.anchorPosMs || 0;
       try {
@@ -335,6 +498,11 @@ export async function partyStep(dir) {
   try {
     const p = store.getState()?.party;
     if (p.role !== 'dj') return true; // swallow listener taps
+    const cur = currentPartyTrack();
+    if (!cur) {
+      // Idle room with no queue: nothing to step — stay silent.
+      return true;
+    }
     socket.emit(dir > 0 ? 'dj:next' : 'dj:prev', { roomId: p.roomId });
   } catch (e) {}
   return true;
@@ -353,6 +521,11 @@ export async function partySeek(positionSec) {
   try {
     const p = store.getState()?.party;
     if (p.role !== 'dj') return true; // swallow listener seeks
+    const cur = currentPartyTrack();
+    if (!cur) {
+      // Idle room with no queue: nothing to seek — stay silent.
+      return true;
+    }
     socket.emit('dj:seek-at', {
       roomId: p.roomId,
       positionMs: Math.round(Math.max(0, Number(positionSec) || 0) * 1000),

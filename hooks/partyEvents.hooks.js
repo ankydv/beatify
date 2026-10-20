@@ -91,6 +91,35 @@ export function usePartyEvents({ roomId, enabled, dispatch, partyRef, cmdSeqRef,
       const idx = partyRef.current.queue.findIndex((q) => q.queueId === queueId);
       dispatch(applyState({ status: 'loading', currentIndex: idx, cmdSeq }));
       dispatch(setLoading(queueId));
+      // Seamless-DJ echo: this dj:load is OUR OWN seed from seedRoomFromPersonal
+      // (we queued the same song that's already playing locally). The local
+      // player is already at/near the right position — do NOT reset/reload or
+      // the music would stutter. Mirror + keep playing.
+      try {
+        const { default: store } = await import('@/state/store');
+        const s = store.getState();
+        const localVideoId = s?.audio?.currentTrack?.videoId;
+        if (
+          s?.party?.role === 'dj' &&
+          bundle?.videoId &&
+          localVideoId &&
+          String(bundle.videoId) === String(localVideoId) &&
+          !s?.audio?.currentTrack?.isPartyTrack
+        ) {
+          try {
+            const TrackPlayer = (await import('react-native-track-player')).default;
+            const st = await TrackPlayer.getState().catch(() => null);
+            const { State } = await import('react-native-track-player');
+            if (st !== State.Playing && st !== State.Buffering) {
+              const { ensurePlaying } = await import('@/utils/partyPlayback.utils');
+              await ensurePlaying();
+            }
+          } catch (e) {}
+          dispatch(setLoading(null));
+          dispatch(applyState({ status: 'playing' }));
+          return;
+        }
+      } catch (e) {}
       mirrorPartyTrack(dispatch, bundle);
 
       try {

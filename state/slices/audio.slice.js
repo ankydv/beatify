@@ -70,11 +70,15 @@ export const loadAndPlayTrack = createAsyncThunk(
     // queue and hijack it for everyone on this device (DJ included). The DJ
     // drives the room through dj:* socket commands instead.
     try {
-      const { roomOwnsAudio } = await import("@/utils/partyPlayback.utils");
+      const { roomOwnsAudio, isPartyDj } = await import("@/utils/partyPlayback.utils");
       if (roomOwnsAudio()) {
         const partySlice = await import("@/state/slices/party.slice");
         // Transient notice (auto-cleared) so the tap doesn't feel broken.
-        dispatch(partySlice.setError("The room is playing — only the DJ can change the track"));
+        dispatch(partySlice.setError(
+          isPartyDj()
+            ? "You're the DJ — add songs from the room's Add music tab 🎧"
+            : "The room is playing — only the DJ can change the track"
+        ));
         setTimeout(() => {
           try {
             dispatch(partySlice.setError(null));

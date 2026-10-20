@@ -108,6 +108,18 @@ const PartyScreen = () => {
     });
   };
 
+  // Host a fresh room while personal audio is playing: capture the seamless
+  // seed FIRST so usePartyPlayback carries the current queue into the room
+  // as DJ without stopping playback. Plain joiners (no seed) get the
+  // idle-room takeover (personal audio paused) instead.
+  const hostRoomSeamless = async (roomId) => {
+    try {
+      const { prepareJamSeed } = await import('@/utils/partyPlayback.utils');
+      prepareJamSeed();
+    } catch (e) {}
+    joinRoom(roomId);
+  };
+
   // Handle manual code join
   const handleCodeJoin = () => {
     if (!inputRoomId.trim()) {
@@ -145,8 +157,8 @@ const PartyScreen = () => {
       setNewRoomTitle('');
       setNewCustomRoomId('');
 
-      // Directly enter newly created room
-      joinRoom(res?.room?.roomId || generatedId);
+      // Directly enter newly created room — as the host with seamless handoff
+      hostRoomSeamless(res?.room?.roomId || generatedId);
     } catch (e) {
       Alert.alert('Error', e?.message || 'Failed to create room');
     } finally {
@@ -187,7 +199,7 @@ const PartyScreen = () => {
           roomId: generatedId,
         });
       } catch (e) {}
-      joinRoom(generatedId);
+      hostRoomSeamless(generatedId);
     }
   };
 
@@ -228,7 +240,9 @@ const PartyScreen = () => {
       console.warn('handleJamTogether error:', e);
     }
 
-    joinRoom(uniqueRoomId);
+    // Fresh room WE created -> seamless host handoff (peer's existing room
+    // above stays a plain join).
+    hostRoomSeamless(uniqueRoomId);
   };
 
   const gamification = vibeProfile?.gamification || {

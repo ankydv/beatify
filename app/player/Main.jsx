@@ -12,8 +12,9 @@ import {
 } from "react-native-track-player";
 import { useDispatch, useSelector } from "react-redux";
 import { playNextTrack, playPrevTrack } from "@/state/slices/audio.slice.js"
-import { partyStep, partyTogglePlayback, roomOwnsAudio } from "@/utils/partyPlayback.utils";
+import { partyStep } from "@/utils/partyPlayback.utils";
 import BubbleIcon from "../../components/BubbleIcon";
+import { useStartJam } from "@/hooks/useStartJam.hooks";
 import { ActivityIndicator } from "react-native-paper";
 import { useTheme } from "react-native-paper";
 import MarqueeText from "../../components/MarqueeText";
@@ -39,6 +40,9 @@ const Main = ({setIsQueueVisible}) => {
   const theme = useTheme();
   // NEW: Get offline hook
   const { getOfflineTrack } = useOfflineTrack();
+  // Jam: host a room as DJ with seamless handoff of the current queue.
+  const { jamming, startJam } = useStartJam();
+  const inPartyRoom = useSelector((s) => !!s?.party?.roomId);
 
   const toggleLyricsVisibility = () => {
     setIsLyricsVisible(!isLyricsVisible);
@@ -167,8 +171,14 @@ const Main = ({setIsQueueVisible}) => {
           {/* Share Button */}
           <BubbleIcon name={"share"} disabled={false} />
 
-          {/* Sleep Timer Button */}
-          <BubbleIcon name={"timer"} disabled={true} />
+          {/* Jam / Party Button — replaces the sleep timer. Host a room as DJ:
+              playback keeps going and enters the room seamlessly. While already
+              in a room it is disabled (you're already jamming). */}
+          <BubbleIcon
+            name={inPartyRoom ? "groups" : "group-add"}
+            disabled={jamming || inPartyRoom}
+            onPress={() => startJam()}
+          />
 
           {/* Queue Button */}
           <BubbleIcon
