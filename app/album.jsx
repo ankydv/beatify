@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from "react";
-import { View, Image, StyleSheet, Animated, BackHandler } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { View, Image, StyleSheet, Animated, BackHandler, Alert, ToastAndroid, Platform, ActivityIndicator } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import MusicList from "@/components/MusicList";
+import { resolvePlaylistSongId } from "@/utils/playlist.utils";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { getAlbum } from "@/services/album.service";
 import BubbleIcon from "@/components/BubbleIcon";
 import { Text } from "@/components/Themed";
-import { useTheme } from "react-native-paper";
+import { useTheme, Menu } from "react-native-paper";
 import BlurImageBg from "@/components/BlurImageBg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LoadingIndicator from "@/components/LoadingIndicator";
@@ -21,19 +22,96 @@ const AlbumScreen = () => {
   const theme = useTheme();
   const [scrollY] = useState(new Animated.Value(0));
   const [isScrolled, setIsScrolled] = useState(false);
+  const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const router = useRouter();
   const navigation = useNavigation();
-  const { getPlaylistDetails } = usePlaylistApi();
+  const { getPlaylistDetails, deletePlaylist } = usePlaylistApi();
   const dispatch = useDispatch();
+  const deletingRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  const userPlaylist = isUserPlaylist === 'true' || isUserPlaylist === true;
+  const playlistId = typeof id === 'string' ? id : Array.isArray(id) ? id[0] : null;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   useEffect(() => {
     if (!id) return;
-    if (isUserPlaylist === 'true' || isUserPlaylist === true) {
-      getPlaylistDetails(id).then((res) => setAlbum(res)).catch(console.error);
+    if (userPlaylist) {
+      getPlaylistDetails(id).then((res) => mountedRef.current && setAlbum(res)).catch(console.error);
     } else {
-      getAlbum(id, String(isPlaylist)).then((res) => setAlbum(res)).catch(console.error);
+      getAlbum(id, String(isPlaylist)).then((res) => mountedRef.current && setAlbum(res)).catch(console.error);
     }
-  }, [id, isPlaylist, isUserPlaylist]);
+  }, [id, isPlaylist, userPlaylist]);
+
+  const notify = useCallback((msg) => {
+    if (Platform.OS === 'android') ToastAndroid.show(msg, ToastAndroid.SHORT);
+    else Alert.alert('Beatify', msg);
+  }, []);
+
+  const goBackAfterDelete = useCallback(() => {
+    if (navigation.canGoBack()) navigation.goBack();
+    else router.back();
+  }, [navigation, router]);
+
+  const doDeletePlaylist = useCallback(async () => {
+    if (!playlistId || deletingRef.current) return;
+    deletingRef.current = true;
+    if (mountedRef.current) {
+      setDeleting(true);
+      setHeaderMenuVisible(false);
+    }
+    try {
+      await deletePlaylist(playlistId);
+      notify(`Deleted "${album?.title || 'playlist'}"`);
+      goBackAfterDelete();
+    } catch (e) {
+      notify(e?.message || 'Could not delete playlist');
+      if (mountedRef.current) setDeleting(false);
+    } finally {
+      deletingRef.current = false;
+    }
+  }, [playlistId, deletePlaylist, notify, goBackAfterDelete, album?.title]);
+
+  const confirmDeletePlaylist = useCallback(() => {
+    setHeaderMenuVisible(false);
+    // Delay so Menu dismiss animation doesn't clash with Alert.
+    setTimeout(() => {
+      Alert.alert(
+        'Delete playlist?',
+        `"${album?.title || 'This playlist'}" will be permanently deleted.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: doDeletePlaylist },
+        ],
+        { cancelable: true }
+      );
+    }, 150);
+  }, [album?.title, doDeletePlaylist]);
+
+  // Optimistic song removal — single source of truth update, no refetch.
+  const handleSongRemoved = useCallback((removedSong) => {
+    const removedId = resolvePlaylistSongId(removedSong);
+    setAlbum((prev) => {
+      if (!prev?.tracks) return prev;
+      return {
+        ...prev,
+        tracks: prev.tracks.filter((t) => {
+          if (removedId && resolvePlaylistSongId(t) === removedId) return false;
+          // Fallback for tracks without _id: match videoId.
+          const rv = removedSong?.videoId || removedSong?.id;
+          const tv = t?.videoId || t?.id;
+          if (rv && tv && rv === tv) return false;
+          return true;
+        }),
+        trackCount: Math.max(0, (prev.trackCount ?? prev.tracks.length) - 1),
+      };
+    });
+  }, []);
 
   useEffect(() => {
     const listener = scrollY.addListener(({ value }) => {
@@ -129,11 +207,43 @@ const AlbumScreen = () => {
               onPress={onPressPlayAll}
             />
             <BubbleIcon color={theme.colors.text} name="share" />
-            <BubbleIcon color={theme.colors.text} name={"more-vert"} />
+            {userPlaylist ? (
+              deleting ? (
+                <ActivityIndicator size="small" color={theme.colors.text} />
+              ) : (
+                <Menu
+                  visible={headerMenuVisible}
+                  onDismiss={() => setHeaderMenuVisible(false)}
+                  anchorPosition="bottom"
+                  anchor={
+                    <BubbleIcon
+                      color={theme.colors.text}
+                      name="more-vert"
+                      onPress={() => setHeaderMenuVisible(true)}
+                    />
+                  }
+                >
+                  <Menu.Item
+                    leadingIcon="delete-outline"
+                    title="Delete playlist"
+                    titleStyle={{ color: '#E94057' }}
+                    onPress={confirmDeletePlaylist}
+                  />
+                </Menu>
+              )
+            ) : (
+              <BubbleIcon color={theme.colors.text} name="more-vert" />
+            )}
           </View>
         </BlurImageBg>
         <View style={styles.musicListContainer}>
-          <MusicList dataset={album.tracks} isQueue={true} />
+          <MusicList
+            dataset={album.tracks}
+            isQueue={true}
+            playlistId={userPlaylist ? playlistId : null}
+            isUserPlaylist={userPlaylist}
+            onSongRemoved={handleSongRemoved}
+          />
         </View>
       </Animated.ScrollView>
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Modal,
   View,
@@ -11,6 +11,7 @@ import {
   Platform,
   ToastAndroid,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useTheme } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -20,14 +21,25 @@ import TrackPlayer from 'react-native-track-player';
 import { setQueue } from '@/state/slices/audio.slice';
 import { handleVoiceRoomSongTap } from '@/utils/partyPlayback.utils';
 import { toArtists, toThumb } from '@/utils/partyDj.utils';
+import { usePlaylistApi } from '@/hooks/library.hooks/playlist.hooks';
+import { resolvePlaylistSongId } from '@/utils/playlist.utils';
 
-export default function SongActionModal({ visible, song, onClose }) {
+export default function SongActionModal({
+  visible,
+  song,
+  onClose,
+  playlistId = null,
+  isUserPlaylist = false,
+  onSongRemoved = null,
+}) {
   const theme = useTheme();
   const router = useRouter();
   const dispatch = useDispatch();
 
   const party = useSelector((s) => s.party);
   const audio = useSelector((s) => s.audio);
+  const { removeSongFromPlaylist } = usePlaylistApi();
+  const [removing, setRemoving] = useState(false);
 
   if (!song) return null;
 
@@ -37,6 +49,7 @@ export default function SongActionModal({ visible, song, onClose }) {
   const videoId = song.videoId || song.id;
   const inVoiceRoom = Boolean(party?.roomId);
   const isDj = party?.role === 'dj';
+  const canRemoveFromPlaylist = Boolean(isUserPlaylist && playlistId);
 
   const notify = (msg) => {
     if (Platform.OS === 'android') {
@@ -165,6 +178,40 @@ export default function SongActionModal({ visible, song, onClose }) {
     } catch (_) {}
   };
 
+  const doRemoveFromPlaylist = async () => {
+    if (removing || !canRemoveFromPlaylist) return;
+    const songId = resolvePlaylistSongId(song);
+    if (!songId) {
+      notify('Could not remove: missing song id');
+      return;
+    }
+    setRemoving(true);
+    // Optimistic: close + update list immediately, rollback not needed
+    // since parent only removes on success.
+    try {
+      await removeSongFromPlaylist({ playlistId, songId });
+      onClose();
+      onSongRemoved?.(song);
+      notify(`Removed "${title}" from playlist`);
+    } catch (e) {
+      notify(e?.message || 'Could not remove song');
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  const handleRemoveFromPlaylist = () => {
+    Alert.alert(
+      'Remove from playlist?',
+      `"${title}" will be removed from this playlist.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: doRemoveFromPlaylist },
+      ],
+      { cancelable: true }
+    );
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
@@ -254,6 +301,30 @@ export default function SongActionModal({ visible, song, onClose }) {
                 <Text style={styles.actionSub}>Save into your personal library playlists</Text>
               </View>
             </TouchableOpacity>
+
+            {/* Remove from this playlist (user playlists only) */}
+            {canRemoveFromPlaylist && (
+              <TouchableOpacity
+                style={styles.actionRow}
+                onPress={handleRemoveFromPlaylist}
+                activeOpacity={0.7}
+                disabled={removing}
+              >
+                <View style={[styles.actionIconWrap, { backgroundColor: 'rgba(233, 64, 87, 0.15)' }]}>
+                  {removing ? (
+                    <ActivityIndicator size="small" color="#E94057" />
+                  ) : (
+                    <Icon name="playlist-remove" size={22} color="#E94057" />
+                  )}
+                </View>
+                <View style={styles.actionTextWrap}>
+                  <Text style={[styles.actionTitle, { color: '#E94057' }]}>
+                    {removing ? 'Removing…' : 'Remove from Playlist'}
+                  </Text>
+                  <Text style={styles.actionSub}>Delete this song from the current playlist</Text>
+                </View>
+              </TouchableOpacity>
+            )}
 
             {/* Go to Artist */}
             <TouchableOpacity style={styles.actionRow} onPress={handleGoToArtist} activeOpacity={0.7}>
