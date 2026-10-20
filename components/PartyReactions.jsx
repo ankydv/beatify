@@ -17,9 +17,9 @@ function Burst({ emoji, x }) {
     ]).start();
   }, [pop, rise]);
 
-  const translateY = rise.interpolate({ inputRange: [0, 1], outputRange: [0, -SCREEN_H * 0.45] });
+  const translateY = rise.interpolate({ inputRange: [0, 1], outputRange: [0, -SCREEN_H * 0.35] });
   const opacity = rise.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 1, 0] });
-  const scale = pop.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
+  const scale = pop.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1.15] });
 
   return (
     <Animated.Text
@@ -71,11 +71,14 @@ export default function PartyReactions() {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'flex-end',
+    top: undefined,
+    height: 320,
+    bottom: 90,
+    overflow: 'hidden',
   },
   emoji: {
     position: 'absolute',
-    bottom: SCREEN_H * 0.3,
+    bottom: 0,
     fontSize: 34,
     textAlign: 'center',
   },

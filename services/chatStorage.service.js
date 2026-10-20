@@ -31,17 +31,94 @@ const notifySubscribers = () => {
   }
 };
 
+// In-memory message cache (LRU bounded) to eliminate empty screen flash without memory bloat
+const MAX_CACHED_CONVERSATIONS = 15;
+const memoryCache = new Map();
+
+const setInCache = (friendId, messages) => {
+  if (!friendId) return;
+  const sId = String(friendId);
+  if (memoryCache.has(sId)) {
+    memoryCache.delete(sId);
+  } else if (memoryCache.size >= MAX_CACHED_CONVERSATIONS) {
+    // Evict oldest (least recently used) conversation
+    const oldestKey = memoryCache.keys().next().value;
+    if (oldestKey) memoryCache.delete(oldestKey);
+  }
+  memoryCache.set(sId, messages);
+};
+
 /**
  * Get messages stored locally on device for a specific friend
  */
 export const getLocalMessages = async (friendId) => {
   if (!friendId) return [];
+  const sId = String(friendId);
+  if (memoryCache.has(sId)) {
+    const cached = memoryCache.get(sId);
+    // Refresh LRU position
+    memoryCache.delete(sId);
+    memoryCache.set(sId, cached);
+    return cached;
+  }
   try {
-    const raw = await AsyncStorage.getItem(`${CHAT_PREFIX}${friendId}`);
-    return raw ? JSON.parse(raw) : [];
+    const raw = await AsyncStorage.getItem(`${CHAT_PREFIX}${sId}`);
+    const parsed = raw ? JSON.parse(raw) : [];
+    setInCache(sId, parsed);
+    return parsed;
   } catch (e) {
     console.warn('Failed to load local messages:', e);
     return [];
+  }
+};
+
+/**
+ * Get synchronous cached messages if already loaded in memory
+ */
+export const getCachedMessages = (friendId) => {
+  if (!friendId) return null;
+  return memoryCache.get(String(friendId)) || null;
+};
+
+export const getCachedMessagesPaginated = (friendId, limit = 20) => {
+  if (!friendId) return null;
+  const all = memoryCache.get(String(friendId));
+  if (!all) return null;
+  const total = all.length;
+  const start = Math.max(0, total - limit);
+  return {
+    messages: all.slice(start),
+    total,
+    hasMore: start > 0,
+  };
+};
+
+/**
+ * Pre-warm message cache in background for top active friends only (never all at once)
+ */
+export const preloadMessagesForFriends = async (friendIds, limit = 5) => {
+  if (!Array.isArray(friendIds) || friendIds.length === 0) return;
+  try {
+    const limitedIds = friendIds.slice(0, Math.min(limit, 5));
+    const missing = limitedIds
+      .filter(Boolean)
+      .map(String)
+      .filter((id) => !memoryCache.has(id));
+    if (missing.length === 0) return;
+    const keys = missing.map((id) => `${CHAT_PREFIX}${id}`);
+    const pairs = await AsyncStorage.multiGet(keys);
+    for (const [key, raw] of pairs) {
+      if (raw) {
+        const fId = key.replace(CHAT_PREFIX, '');
+        try {
+          setInCache(fId, JSON.parse(raw));
+        } catch (e) {
+          setInCache(fId, []);
+        }
+      }
+    }
+  } catch (e) {
+    // Non-fatal background warm-up
   }
 };
 
@@ -108,6 +185,7 @@ export const saveMessageLocally = async (friendId, msg, isOutgoing = false) => {
     };
 
     const updated = [...existing, formatted].slice(-300); // keep recent 300
+    setInCache(friendId, updated);
     await AsyncStorage.setItem(`${CHAT_PREFIX}${friendId}`, JSON.stringify(updated));
 
     // Update unread count if incoming (inline: incrementUnread would
@@ -152,6 +230,7 @@ export const markOutgoingMessagesAsSent = async (friendId, messageUuids = null) 
     });
 
     if (changed) {
+      setInCache(friendId, updated);
       await AsyncStorage.setItem(`${CHAT_PREFIX}${friendId}`, JSON.stringify(updated));
       notifySubscribers();
     }
@@ -183,6 +262,7 @@ export const markOutgoingMessagesAsDelivered = async (friendId, messageUuids = n
     });
 
     if (changed) {
+      setInCache(friendId, updated);
       await AsyncStorage.setItem(`${CHAT_PREFIX}${friendId}`, JSON.stringify(updated));
       notifySubscribers();
     }
@@ -210,6 +290,7 @@ export const markOutgoingMessagesAsSeen = async (friendId) => {
     });
 
     if (changed) {
+      setInCache(friendId, updated);
       await AsyncStorage.setItem(`${CHAT_PREFIX}${friendId}`, JSON.stringify(updated));
       notifySubscribers();
     }
@@ -303,6 +384,7 @@ export const markChatAsRead = async (friendId) => {
     // 1. Mark in messages list
     const messages = await getLocalMessages(friendId);
     const updated = messages.map((m) => ({ ...m, read: true }));
+    setInCache(friendId, updated);
     await AsyncStorage.setItem(`${CHAT_PREFIX}${friendId}`, JSON.stringify(updated));
 
     // 2. Clear unread count for this friend
@@ -321,6 +403,7 @@ export const markChatAsRead = async (friendId) => {
 export const clearLocalChat = async (friendId) => {
   if (!friendId) return;
   try {
+    memoryCache.delete(String(friendId));
     await AsyncStorage.removeItem(`${CHAT_PREFIX}${friendId}`);
     notifySubscribers();
   } catch (e) {}

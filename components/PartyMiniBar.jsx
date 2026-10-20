@@ -146,7 +146,7 @@ function PartyMiniBar() {
 
   const expand = useCallback(() => {
     dispatch(setMinimised(false));
-    router.push({ pathname: 'voiceRoom', params: { roomId } });
+    router.push({ pathname: '/voiceRoom', params: { roomId } });
   }, [dispatch, roomId]);
 
   const leave = useCallback(() => {

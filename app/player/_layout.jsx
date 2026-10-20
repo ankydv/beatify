@@ -34,7 +34,9 @@ const Player = () => {
       setIsQueueVisible(false);
     } else {
       setIsFullScreen(false);
-      if (navigation.canGoBack()) {
+      if (router.canGoBack()) {
+        router.back();
+      } else if (navigation.canGoBack()) {
         navigation.goBack();
       } else {
         router.replace("/(tabs)");

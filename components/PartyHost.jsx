@@ -86,7 +86,8 @@ export default function PartyHost() {
     }
 
     // Keep CPU and Wifi active in background/lock screen while in party room
-    acquirePartyLocks().catch(() => {});
+    // Room id is forwarded so the foreground notification deep-links back.
+    acquirePartyLocks(roomId).catch(() => {});
 
     let isMounted = true;
     (async () => {

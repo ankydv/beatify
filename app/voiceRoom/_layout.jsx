@@ -66,10 +66,12 @@ const PartyRoom = () => {
   // Hardware back minimises the room; leaving is an explicit action.
   const minimize = () => {
     dispatch(setMinimised(true));
-    if (navigation.canGoBack()) {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/party');
     }
   };
 
@@ -84,10 +86,12 @@ const PartyRoom = () => {
   const leave = () => {
     resetAudioOutput().catch(() => {});
     dispatch(resetParty());
-    if (navigation.canGoBack()) {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/party');
     }
   };
 

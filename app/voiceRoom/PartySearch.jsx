@@ -93,7 +93,12 @@ export default function PartySearch({ roomId }) {
   };
 
   return (
-    <ScrollView>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator
+    >
       <View style={styles.searchRow}>
         <TextInput
           style={styles.input}
@@ -138,6 +143,8 @@ export default function PartySearch({ roomId }) {
 }
 
 const styles = StyleSheet.create({
+  scroll: { flex: 1, minHeight: 0 },
+  scrollContent: { paddingHorizontal: 10, paddingVertical: 6, paddingBottom: 12, flexGrow: 1 },
   searchRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   input: { flex: 1, backgroundColor: '#2c2c2c', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 13 },
   goBtn: { backgroundColor: '#6200ee', width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center' },

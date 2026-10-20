@@ -6,7 +6,9 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -25,6 +27,15 @@ import androidx.core.app.NotificationCompat
  * 2. Process priority is maintained at FOREGROUND_SERVICE level, preventing Android Doze mode / App Standby
  *    from throttling Socket.io and WebRTC UDP/STUN/ICE network packets.
  * 3. Keeps a PARTIAL_WAKE_LOCK so CPU doesn't sleep while voice communication is active.
+ *
+ * Notification tap deep-links into the party room (`voiceRoom?roomId=...`) so
+ * it always opens the party screen. The JS side (EventListeners.js) dedups
+ * the tap and never pushes a second voiceRoom over the first.
+ *
+ * SOURCE OF TRUTH: this file lives in modules/audio-route/ (tracked in git).
+ * plugins/withAudioRoute.js copies it into android/app/src/... on prebuild
+ * (rewriting the `package` line for the dev variant). Do NOT edit the
+ * android/ copy by hand — it gets overwritten.
  */
 class PartyVoiceService : Service() {
 
@@ -34,6 +45,10 @@ class PartyVoiceService : Service() {
         const val NOTIFICATION_ID = 90210
         const val ACTION_START = "com.ankydv.beatify.START_PARTY_VOICE"
         const val ACTION_STOP = "com.ankydv.beatify.STOP_PARTY_VOICE"
+        const val EXTRA_ROOM_ID = "extra_room_id"
+
+        private const val PREFS_NAME = "beatify_party_prefs"
+        private const val KEY_ROOM_ID = "party_room_id"
 
         @Volatile
         var isRunning: Boolean = false
@@ -51,19 +66,42 @@ class PartyVoiceService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            clearSavedRoomId()
             stopForegroundService()
             return START_NOT_STICKY
         }
 
-        startForegroundWithNotification()
+        // Room id may arrive as an intent extra (fresh join) or from prefs
+        // (service restarted / notification tapped after process death).
+        var roomId = intent?.getStringExtra(EXTRA_ROOM_ID)
+        if (!roomId.isNullOrEmpty()) {
+            saveRoomId(roomId)
+        } else {
+            roomId = getSavedRoomId()
+        }
+
+        startForegroundWithNotification(roomId)
         acquireServiceWakeLock()
         isRunning = true
         return START_STICKY
     }
 
-    private fun startForegroundWithNotification() {
+    private fun buildDeepLinkUri(roomId: String?): Uri {
+        return if (!roomId.isNullOrEmpty()) {
+            Uri.parse("com.ankydv.beatify://voiceRoom?roomId=${Uri.encode(roomId)}&source=party-voice")
+        } else {
+            Uri.parse("com.ankydv.beatify://notification.click?source=party-voice")
+        }
+    }
+
+    private fun startForegroundWithNotification(roomId: String?) {
         try {
-            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            // Deep-link content intent: tap always opens the party screen.
+            // MainActivity is singleTask, so SINGLE_TOP | CLEAR_TOP delivers
+            // via onNewIntent (Expo Linking) without stacking a new Activity.
+            val deepLink = buildDeepLinkUri(roomId)
+            val contentIntent = Intent(Intent.ACTION_VIEW, deepLink).apply {
+                `package` = packageName
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -71,9 +109,9 @@ class PartyVoiceService : Service() {
             } else {
                 PendingIntent.FLAG_UPDATE_CURRENT
             }
-            val pendingIntent = if (launchIntent != null) {
-                PendingIntent.getActivity(this, 0, launchIntent, pendingIntentFlags)
-            } else null
+            // NOTIFICATION_ID as requestCode so a re-start (room change)
+            // updates the existing PendingIntent instead of keeping stale data.
+            val pendingIntent = PendingIntent.getActivity(this, NOTIFICATION_ID, contentIntent, pendingIntentFlags)
 
             val iconRes = applicationInfo.icon.takeIf { it != 0 }
                 ?: android.R.drawable.ic_btn_speak_now
@@ -82,14 +120,13 @@ class PartyVoiceService : Service() {
                 .setContentTitle("In Party / Jam")
                 .setContentText("Click to open")
                 .setSmallIcon(iconRes)
+                .setContentIntent(pendingIntent)
                 .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setAutoCancel(false)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-
-            if (pendingIntent != null) {
-                builder.setContentIntent(pendingIntent)
-            }
 
             val notification = builder.build()
 
@@ -102,7 +139,7 @@ class PartyVoiceService : Service() {
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
-            Log.d(TAG, "PartyVoiceService started as foreground service (microphone)")
+            Log.d(TAG, "PartyVoiceService foreground notification posted (roomId=$roomId)")
         } catch (e: Exception) {
             Log.e(TAG, "Error starting foreground service: ${e.message}", e)
         }
@@ -151,6 +188,29 @@ class PartyVoiceService : Service() {
     override fun onDestroy() {
         stopForegroundService()
         super.onDestroy()
+    }
+
+    private fun prefs(): SharedPreferences =
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    private fun saveRoomId(roomId: String) {
+        try {
+            prefs().edit().putString(KEY_ROOM_ID, roomId).apply()
+        } catch (_: Exception) {}
+    }
+
+    private fun getSavedRoomId(): String? {
+        return try {
+            prefs().getString(KEY_ROOM_ID, null)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun clearSavedRoomId() {
+        try {
+            prefs().edit().remove(KEY_ROOM_ID).apply()
+        } catch (_: Exception) {}
     }
 
     private fun createNotificationChannel() {

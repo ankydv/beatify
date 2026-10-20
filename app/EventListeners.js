@@ -39,31 +39,14 @@ const EventListeners = () => {
       if (url === "trackplayer://notification.click" || url.includes("notification.click")) {
         try {
           const state = store.getState();
-          const activeRoomId = state?.party?.roomId;
-          const currentRoutes = navigation.getState()?.routes || [];
-          const currentRouteName = currentRoutes[currentRoutes.length - 1]?.name;
-
-          if (activeRoomId) {
+          if (state?.party?.roomId) {
             store.dispatch(setMinimised(false));
-            if (currentRouteName !== "voiceRoom") {
-              if (currentRouteName === "+not-found" || !navigation.canGoBack()) {
-                router.replace({ pathname: "/voiceRoom", params: { roomId: activeRoomId } });
-              } else {
-                router.push({ pathname: "/voiceRoom", params: { roomId: activeRoomId } });
-              }
-            }
-          } else {
-            if (currentRouteName !== "player") {
-              if (currentRouteName === "+not-found" || !navigation.canGoBack()) {
-                router.replace("/player");
-              } else {
-                router.push("/player");
-              }
-            }
           }
         } catch (navErr) {
-          console.warn("[EventListeners] Notification click navigation error:", navErr);
+          console.warn("[EventListeners] Notification click handler error:", navErr);
         }
+        // Notification click routing is cleanly handled by app/notification.click.tsx
+        return;
       }
     };
     const sub = Linking.addEventListener("url", handleUrl);

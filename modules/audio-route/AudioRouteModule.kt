@@ -358,10 +358,13 @@ class AudioRouteModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    private fun startPartyVoiceServiceInternal() {
+    private fun startPartyVoiceServiceInternal(roomId: String? = null) {
         try {
             val intent = Intent(reactContext, PartyVoiceService::class.java).apply {
                 action = PartyVoiceService.ACTION_START
+                if (!roomId.isNullOrEmpty()) {
+                    putExtra(PartyVoiceService.EXTRA_ROOM_ID, roomId)
+                }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 reactContext.startForegroundService(intent)
@@ -390,7 +393,19 @@ class AudioRouteModule(private val reactContext: ReactApplicationContext) :
     fun startPartyVoiceService(promise: Promise) {
         Handler(Looper.getMainLooper()).post {
             try {
-                startPartyVoiceServiceInternal()
+                startPartyVoiceServiceInternal(null)
+                promise.resolve(true)
+            } catch (e: Exception) {
+                promise.reject("SERVICE_ERROR", e.message, e)
+            }
+        }
+    }
+
+    @ReactMethod
+    fun startPartyVoiceServiceWithRoom(roomId: String?, promise: Promise) {
+        Handler(Looper.getMainLooper()).post {
+            try {
+                startPartyVoiceServiceInternal(roomId)
                 promise.resolve(true)
             } catch (e: Exception) {
                 promise.reject("SERVICE_ERROR", e.message, e)
@@ -419,7 +434,7 @@ class AudioRouteModule(private val reactContext: ReactApplicationContext) :
     fun acquirePartyLocks(promise: Promise) {
         Handler(Looper.getMainLooper()).post {
             try {
-                startPartyVoiceServiceInternal()
+                startPartyVoiceServiceInternal(null)
 
                 if (wakeLock == null) {
                     val powerManager = reactContext.getSystemService(Context.POWER_SERVICE) as? PowerManager

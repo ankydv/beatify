@@ -34,6 +34,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./plugins/withAudioRoute",
       "expo-router",
       [
         "expo-build-properties",

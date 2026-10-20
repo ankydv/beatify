@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from '
 import {
   View,
   ScrollView,
+  FlatList,
   StyleSheet,
   TouchableOpacity,
   Image,
@@ -123,6 +124,85 @@ const ChatBubble = memo(function ChatBubble({ msg, isMe, bubbleBg, bubbleTextCol
   );
 });
 
+// Memoized Friend Row in Chat List
+const FriendRow = memo(function FriendRow({
+  friend: f,
+  unread,
+  theme,
+  onPress,
+  onFollowRoom,
+}) {
+  const friendId = f.friendId || f.id;
+  const isLive = f.isLiveInRoom && f.roomInfo?.roomId;
+
+  return (
+    <TouchableOpacity
+      style={[styles.friendRow, { backgroundColor: theme.colors.elevation.level1 }]}
+      onPress={() => onPress(f)}
+      activeOpacity={0.78}
+    >
+      <View style={styles.friendRowAvatarBox}>
+        {f.picture ? (
+          <Image source={{ uri: f.picture }} style={styles.friendRowAvatar} />
+        ) : (
+          <View style={[styles.friendRowAvatar, styles.avatarFallback]}>
+            <Icon name="account" size={24} color="#FFFFFF" />
+          </View>
+        )}
+        {isLive && <View style={styles.liveIndicatorBadge} />}
+      </View>
+
+      <View style={styles.friendRowMeta}>
+        <View style={styles.friendRowTopLine}>
+          <Text style={styles.friendRowName} numberOfLines={1}>
+            {f.name}
+          </Text>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={styles.synergyBadge}>
+              <Icon name="shimmer" size={11} color="#FFD700" />
+              <Text style={styles.synergyBadgeText}>{f.synergyPoints || 10} Synergy</Text>
+            </View>
+
+            {unread > 0 && (
+              <View style={styles.unreadCountBadge}>
+                <Text style={styles.unreadCountText}>{unread}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        <Text
+          style={[styles.friendRowStatus, unread > 0 && styles.friendRowStatusUnread]}
+          numberOfLines={1}
+        >
+          {isLive
+            ? `🎧 Live in ${f.roomInfo?.title || `Room #${f.roomInfo?.roomId}`}`
+            : f.lastMessage?.message
+            ? f.lastMessage.message
+            : 'Tap to open chat'}
+        </Text>
+      </View>
+
+      {isLive ? (
+        <TouchableOpacity
+          style={styles.chatListFollowBtn}
+          onPress={(e) => {
+            e.stopPropagation();
+            onFollowRoom(f.roomInfo?.roomId);
+          }}
+          activeOpacity={0.8}
+        >
+          <Icon name="account-arrow-right" size={14} color="#FFFFFF" />
+          <Text style={styles.chatListFollowBtnText}>Follow</Text>
+        </TouchableOpacity>
+      ) : (
+        <Icon name="chevron-right" size={20} color="#888888" style={{ marginLeft: 6 }} />
+      )}
+    </TouchableOpacity>
+  );
+});
+
 export default function ChatScreen() {
   const router = useRouter();
   const { friendId: paramFriendId } = useLocalSearchParams();
@@ -154,14 +234,11 @@ export default function ChatScreen() {
   const [respondingId, setRespondingId] = useState(null);
 
   // Scroll & conversation state management
-  const scrollViewRef = useRef(null);
-  const isInitialLoadRef = useRef(true);
+  const flatListRef = useRef(null);
   const isNearBottomRef = useRef(true);
   const prevMessageCountRef = useRef(0);
-  const prevContentHeightRef = useRef(0);
   const currentScrollYRef = useRef(0);
   const lastMessageIdRef = useRef(null);
-  const wasLoadingOlderRef = useRef(false);
   const handledParamFriendIdRef = useRef(null);
   const [showScrollBottomHint, setShowScrollBottomHint] = useState(false);
 
@@ -180,6 +257,8 @@ export default function ChatScreen() {
     const msg = chatInputText.trim();
     setChatInputText('');
     await sendChatMessage(msg);
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    setShowScrollBottomHint(false);
   }, [chatInputText, sendChatMessage]);
 
   const handleCloseConversation = useCallback(() => {
@@ -190,17 +269,10 @@ export default function ChatScreen() {
     }
   }, [closeChat, paramFriendId, router]);
 
-  const handleLoadOlder = async () => {
+  const handleLoadOlder = useCallback(async () => {
     if (!hasMoreOlder || loadingOlder) return;
-    wasLoadingOlderRef.current = true;
-    try {
-      await loadOlderMessages();
-    } finally {
-      setTimeout(() => {
-        wasLoadingOlderRef.current = false;
-      }, 500);
-    }
-  };
+    await loadOlderMessages();
+  }, [hasMoreOlder, loadingOlder, loadOlderMessages]);
 
   // Auto-open chat if navigated with friendId param
   useEffect(() => {
@@ -242,15 +314,59 @@ export default function ChatScreen() {
     }
   }, [chatMessages, isFocused, activeChatFriend, user?.id]);
 
+  // Inverted data for FlatList: index 0 is newest (bottom)
+  const invertedMessages = useMemo(() => {
+    return [...chatMessages].reverse();
+  }, [chatMessages]);
+
+  const renderMessageItem = useCallback(
+    ({ item: msg }) => {
+      const isMe = msg.senderId === user?.id;
+      return (
+        <ChatBubble
+          msg={msg}
+          isMe={isMe}
+          bubbleBg={theme.colors.elevation.level2}
+          bubbleTextColor={theme.colors.onSurface}
+          onFollowRoom={handleFollowRoom}
+        />
+      );
+    },
+    [user?.id, theme.colors.elevation.level2, theme.colors.onSurface, handleFollowRoom]
+  );
+
+  const keyExtractor = useCallback((item, index) => {
+    return item.uuid || item._id || `${item.senderId}-${item.createdAt}-${index}`;
+  }, []);
+
+  const renderFooter = useCallback(() => {
+    if (!hasMoreOlder) return null;
+    return (
+      <TouchableOpacity
+        style={styles.loadOlderBtn}
+        onPress={handleLoadOlder}
+        disabled={loadingOlder}
+        activeOpacity={0.7}
+      >
+        {loadingOlder ? (
+          <ActivityIndicator size="small" color={theme.colors.primary} />
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Icon name="arrow-up-circle-outline" size={15} color="#9E9EA7" style={{ marginRight: 6 }} />
+            <Text style={styles.loadOlderText}>Load older messages</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  }, [hasMoreOlder, loadingOlder, handleLoadOlder, theme.colors.primary]);
+
   // Reset scroll flags when active chat changes
   useEffect(() => {
     if (activeChatFriend) {
-      isInitialLoadRef.current = true;
       isNearBottomRef.current = true;
       setShowScrollBottomHint(false);
       prevMessageCountRef.current = 0;
       lastMessageIdRef.current = null;
-      wasLoadingOlderRef.current = false;
     }
   }, [activeChatFriend]);
 
@@ -270,23 +386,12 @@ export default function ChatScreen() {
     );
     lastMessageIdRef.current = currentLastId;
 
-    if (isInitialLoadRef.current) {
-      // Handled by onContentSizeChange
-      return;
-    }
-
-    // If loading older messages (prepended to top), suppress auto-scroll and false new-message hint
-    if (wasLoadingOlderRef.current) {
-      return;
-    }
-
     if (count > prevCount && isNewBottomMessage) {
       const isMe = lastMsg?.senderId === user?.id;
 
       if (isMe || isNearBottomRef.current) {
-        setTimeout(() => {
-          scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 60);
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        setShowScrollBottomHint(false);
       } else {
         setShowScrollBottomHint(true);
       }
@@ -331,19 +436,16 @@ export default function ChatScreen() {
     return friends.filter((f) => (f.name || '').toLowerCase().includes(q));
   }, [friends, searchQuery]);
 
-  // Throttled via rAF: onScroll fires every frame while scrolling; writing
-  // refs + conditional setState directly janks the MiniBar native drag.
+  // Throttled via rAF for inverted FlatList: offset <= 60 is bottom
   const scrollTickingRef = useRef(false);
   const handleConversationScroll = useCallback((e) => {
     if (scrollTickingRef.current) return;
     scrollTickingRef.current = true;
-    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-    const y = contentOffset.y;
-    const paddingToBottom = 220;
-    const isClose = contentSize.height - (layoutMeasurement.height + y) <= paddingToBottom;
+    const y = e.nativeEvent.contentOffset.y;
     requestAnimationFrame(() => {
       scrollTickingRef.current = false;
       currentScrollYRef.current = y;
+      const isClose = y <= 60;
       isNearBottomRef.current = isClose;
       if (isClose) setShowScrollBottomHint((prev) => (prev ? false : prev));
     });
@@ -352,6 +454,244 @@ export default function ChatScreen() {
   const liveFriends = useMemo(() => {
     return friends.filter((f) => f.isLiveInRoom && f.roomInfo);
   }, [friends]);
+
+  // Chat List Pagination: paginate friends list to scale cleanly
+  const CHAT_PAGE_SIZE = 15;
+  const [chatListPage, setChatListPage] = useState(1);
+
+  // Reset pagination when searching
+  useEffect(() => {
+    setChatListPage(1);
+  }, [searchQuery]);
+
+  const paginatedFriends = useMemo(() => {
+    return filteredFriends.slice(0, chatListPage * CHAT_PAGE_SIZE);
+  }, [filteredFriends, chatListPage]);
+
+  const hasMoreFriends = paginatedFriends.length < filteredFriends.length;
+
+  const handleLoadMoreFriends = useCallback(() => {
+    if (hasMoreFriends) {
+      setChatListPage((prev) => prev + 1);
+    }
+  }, [hasMoreFriends]);
+
+  const renderFriendRow = useCallback(
+    ({ item: f }) => {
+      const friendId = f.friendId || f.id;
+      const unread = unreadCounts[friendId] || 0;
+      return (
+        <FriendRow
+          friend={f}
+          unread={unread}
+          theme={theme}
+          onPress={openChat}
+          onFollowRoom={handleFollowRoom}
+        />
+      );
+    },
+    [unreadCounts, theme, openChat, handleFollowRoom]
+  );
+
+  const friendKeyExtractor = useCallback((f) => {
+    return String(f.friendId || f.id || f._id);
+  }, []);
+
+  const chatListHeader = useMemo(() => {
+    return (
+      <View>
+        {/* Incoming Friend Requests */}
+        {pendingRequests.length > 0 && (
+          <View style={styles.pendingSection}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Icon name="account-clock" size={20} color="#FFD700" style={{ marginRight: 6 }} />
+                <Text variant="titleSmall" style={styles.sectionTitle}>
+                  Incoming Requests ({pendingRequests.length})
+                </Text>
+              </View>
+            </View>
+
+            {pendingRequests.map((req) => (
+              <View
+                key={req._id}
+                style={[styles.pendingCard, { backgroundColor: theme.colors.elevation.level2 }]}
+              >
+                <View style={styles.pendingUserMeta}>
+                  {req.requesterPicture ? (
+                    <Image source={{ uri: req.requesterPicture }} style={styles.pendingAvatar} />
+                  ) : (
+                    <View style={[styles.pendingAvatar, styles.avatarFallback]}>
+                      <Icon name="account" size={18} color="#FFFFFF" />
+                    </View>
+                  )}
+                  <View style={{ marginLeft: 12, flex: 1 }}>
+                    <Text style={styles.pendingName} numberOfLines={1}>
+                      {req.requesterName}
+                    </Text>
+                    <Text style={styles.pendingSub}>Wants to vibe & listen with you</Text>
+                  </View>
+                </View>
+
+                <View style={styles.pendingActionsRow}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.acceptBtn]}
+                    onPress={() => handleResponse(req._id, 'accept')}
+                    disabled={respondingId === req._id}
+                  >
+                    <Icon name="check" size={16} color="#FFFFFF" />
+                    <Text style={styles.actionBtnText}>Accept</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.declineBtn]}
+                    onPress={() => handleResponse(req._id, 'decline')}
+                    disabled={respondingId === req._id}
+                  >
+                    <Icon name="close" size={16} color="#FFFFFF" />
+                    <Text style={styles.actionBtnText}>Decline</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Live Friends in Rooms */}
+        {liveFriends.length > 0 && (
+          <View style={styles.liveSection}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.liveDot} />
+              <Text variant="titleSmall" style={styles.sectionTitle}>
+                Friends Vibing in Rooms ({liveFriends.length})
+              </Text>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.liveScroll}>
+              {liveFriends.map((f) => (
+                <View
+                  key={f.friendId}
+                  style={[styles.liveFriendCard, { backgroundColor: theme.colors.elevation.level2 }]}
+                >
+                  <View style={styles.liveAvatarBox}>
+                    {f.picture ? (
+                      <Image source={{ uri: f.picture }} style={styles.liveAvatar} />
+                    ) : (
+                      <View style={[styles.liveAvatar, styles.avatarFallback]}>
+                        <Icon name="account" size={20} color="#FFFFFF" />
+                      </View>
+                    )}
+                    <View style={styles.liveAvatarDot} />
+                  </View>
+
+                  <Text style={styles.liveFriendName} numberOfLines={1}>
+                    {f.name}
+                  </Text>
+                  <Text style={styles.liveRoomTitle} numberOfLines={1}>
+                    {f.roomInfo?.title || `Room #${f.roomInfo?.roomId}`}
+                  </Text>
+
+                  <TouchableOpacity
+                    style={styles.liveFollowBtn}
+                    onPress={() => handleFollowRoom(f.roomInfo?.roomId)}
+                    activeOpacity={0.8}
+                  >
+                    <Icon name="account-arrow-right" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                    <Text style={styles.liveFollowBtnText}>Follow</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Search Filter Box */}
+        <View style={styles.searchBox}>
+          <TextInput
+            placeholder="Search friends..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            mode="outlined"
+            dense
+            left={<TextInput.Icon icon="magnify" />}
+            style={{ backgroundColor: theme.colors.elevation.level1 }}
+          />
+        </View>
+
+        {/* Friends List Header */}
+        <View style={styles.friendsListHeadingRow}>
+          <Text variant="titleMedium" style={styles.friendsListHeading}>
+            All Friends ({friends.length})
+          </Text>
+          {paginatedFriends.length < filteredFriends.length && (
+            <Text style={styles.friendsListPaginationHint}>
+              Showing {paginatedFriends.length} of {filteredFriends.length}
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  }, [
+    pendingRequests,
+    liveFriends,
+    searchQuery,
+    theme.colors.elevation.level2,
+    theme.colors.elevation.level1,
+    handleResponse,
+    respondingId,
+    handleFollowRoom,
+    friends.length,
+    paginatedFriends.length,
+    filteredFriends.length,
+  ]);
+
+  const chatListEmpty = useMemo(() => {
+    if (friends.length === 0) {
+      return (
+        <View style={styles.emptyStateBox}>
+          <Icon name="account-group-outline" size={48} color="#888888" />
+          <Text style={styles.emptyStateTitle}>No friends added yet</Text>
+          <Text style={styles.emptyStateSub}>
+            Head to the Party tab to match musical vibes and send friend requests!
+          </Text>
+          <TouchableOpacity
+            style={[styles.exploreBtn, { backgroundColor: theme.colors.primary }]}
+            onPress={() => router.push('/(tabs)/party')}
+          >
+            <Icon name="party-popper" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.exploreBtnText}>Find Vibe Matches</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    if (filteredFriends.length === 0) {
+      return (
+        <View style={styles.emptyStateBox}>
+          <Text style={styles.emptyStateSub}>No friends matching "{searchQuery}"</Text>
+        </View>
+      );
+    }
+    return null;
+  }, [friends.length, filteredFriends.length, searchQuery, theme.colors.primary, router]);
+
+  const chatListFooter = useMemo(() => {
+    return (
+      <View>
+        {hasMoreFriends && (
+          <TouchableOpacity
+            style={styles.loadMoreFriendsWrapper}
+            onPress={handleLoadMoreFriends}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.loadMoreFriendsText}>
+              Load more friends ({paginatedFriends.length} of {filteredFriends.length})
+            </Text>
+          </TouchableOpacity>
+        )}
+        <View style={{ height: 100 }} />
+      </View>
+    );
+  }, [hasMoreFriends, handleLoadMoreFriends, paginatedFriends.length, filteredFriends.length]);
 
   // -------------------------------------------------------------
   // DEDICATED FULL-SCREEN CHAT CONVERSATION VIEW (NOT A MODAL)
@@ -407,64 +747,12 @@ export default function ChatScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.chatRoomScroll}
-            contentContainerStyle={styles.chatRoomScrollContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              hasMoreOlder ? (
-                <RefreshControl
-                  refreshing={loadingOlder}
-                  onRefresh={handleLoadOlder}
-                  tintColor={theme.colors.primary}
-                  colors={[theme.colors.primary]}
-                />
-              ) : undefined
-            }
-            onContentSizeChange={(w, newHeight) => {
-              if (isInitialLoadRef.current && chatMessages.length > 0) {
-                scrollViewRef.current?.scrollToEnd({ animated: false });
-                isInitialLoadRef.current = false;
-                prevContentHeightRef.current = newHeight;
-                return;
-              }
-
-              if (wasLoadingOlderRef.current) {
-                const heightDiff = newHeight - prevContentHeightRef.current;
-                if (heightDiff > 0) {
-                  const targetY = currentScrollYRef.current + heightDiff;
-                  scrollViewRef.current?.scrollTo({ y: targetY, animated: false });
-                }
-                wasLoadingOlderRef.current = false;
-              } else if (isNearBottomRef.current) {
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-              }
-              prevContentHeightRef.current = newHeight;
-            }}
-            onScroll={handleConversationScroll}
-            scrollEventThrottle={32}
-          >
-            {/* Pull down / tap to load older messages indicator */}
-            {hasMoreOlder && (
-              <TouchableOpacity
-                style={styles.loadOlderBtn}
-                onPress={handleLoadOlder}
-                disabled={loadingOlder}
-                activeOpacity={0.7}
-              >
-                {loadingOlder ? (
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
-                ) : (
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Icon name="arrow-up-circle-outline" size={15} color="#9E9EA7" style={{ marginRight: 6 }} />
-                    <Text style={styles.loadOlderText}>Pull down or tap to load 10 older messages</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            )}
-
-            {chatMessages.length === 0 ? (
+          {chatMessages.length === 0 ? (
+            <ScrollView
+              style={styles.chatRoomScroll}
+              contentContainerStyle={styles.chatEmptyScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
               <View style={styles.chatEmptyBox}>
                 <View style={styles.emptyIconCircle}>
                   <Icon name="waveform" size={34} color="#E94057" />
@@ -501,23 +789,25 @@ export default function ChatScreen() {
                   </View>
                 </View>
               </View>
-            ) : (
-              chatMessages.map((msg, idx) => {
-                const mId = msg.uuid || msg._id || `${msg.senderId}-${msg.createdAt}-${idx}`;
-                const isMe = msg.senderId === user?.id;
-                return (
-                  <ChatBubble
-                    key={mId}
-                    msg={msg}
-                    isMe={isMe}
-                    bubbleBg={theme.colors.elevation.level2}
-                    bubbleTextColor={theme.colors.onSurface}
-                    onFollowRoom={handleFollowRoom}
-                  />
-                );
-              })
-            )}
-          </ScrollView>
+            </ScrollView>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              inverted
+              data={invertedMessages}
+              keyExtractor={keyExtractor}
+              renderItem={renderMessageItem}
+              ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+              style={styles.chatRoomScroll}
+              contentContainerStyle={styles.chatRoomFlatListContent}
+              showsVerticalScrollIndicator={false}
+              ListFooterComponent={renderFooter}
+              onEndReached={hasMoreOlder && !loadingOlder ? handleLoadOlder : undefined}
+              onEndReachedThreshold={0.15}
+              onScroll={handleConversationScroll}
+              scrollEventThrottle={32}
+            />
+          )}
 
           {/* Floating "New messages below" Hint Button */}
           {showScrollBottomHint && (
@@ -525,7 +815,7 @@ export default function ChatScreen() {
               <TouchableOpacity
                 style={styles.floatingHintBtn}
                 onPress={() => {
-                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                  flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
                   setShowScrollBottomHint(false);
                 }}
                 activeOpacity={0.85}
@@ -608,9 +898,15 @@ export default function ChatScreen() {
         ) : null}
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        showsVerticalScrollIndicator={false}
+      <FlatList
+        data={paginatedFriends}
+        keyExtractor={friendKeyExtractor}
+        renderItem={renderFriendRow}
+        ListHeaderComponent={chatListHeader}
+        ListEmptyComponent={chatListEmpty}
+        ListFooterComponent={chatListFooter}
+        onEndReached={handleLoadMoreFriends}
+        onEndReachedThreshold={0.3}
         refreshControl={
           <RefreshControl
             refreshing={loading}
@@ -619,228 +915,9 @@ export default function ChatScreen() {
             tintColor={theme.colors.primary}
           />
         }
-      >
-        {/* ---------------- Incoming Friend Requests Section ---------------- */}
-        {pendingRequests.length > 0 && (
-          <View style={styles.pendingSection}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Icon name="account-clock" size={20} color="#FFD700" style={{ marginRight: 6 }} />
-                <Text variant="titleSmall" style={styles.sectionTitle}>
-                  Incoming Requests ({pendingRequests.length})
-                </Text>
-              </View>
-            </View>
-
-            {pendingRequests.map((req) => (
-              <View
-                key={req._id}
-                style={[styles.pendingCard, { backgroundColor: theme.colors.elevation.level2 }]}
-              >
-                <View style={styles.pendingUserMeta}>
-                  {req.requesterPicture ? (
-                    <Image source={{ uri: req.requesterPicture }} style={styles.pendingAvatar} />
-                  ) : (
-                    <View style={[styles.pendingAvatar, styles.avatarFallback]}>
-                      <Icon name="account" size={18} color="#FFFFFF" />
-                    </View>
-                  )}
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={styles.pendingName} numberOfLines={1}>
-                      {req.requesterName}
-                    </Text>
-                    <Text style={styles.pendingSub}>Wants to vibe & listen with you</Text>
-                  </View>
-                </View>
-
-                <View style={styles.pendingActionsRow}>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.acceptBtn]}
-                    onPress={() => handleResponse(req._id, 'accept')}
-                    disabled={respondingId === req._id}
-                  >
-                    <Icon name="check" size={16} color="#FFFFFF" />
-                    <Text style={styles.actionBtnText}>Accept</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.declineBtn]}
-                    onPress={() => handleResponse(req._id, 'decline')}
-                    disabled={respondingId === req._id}
-                  >
-                    <Icon name="close" size={16} color="#FFFFFF" />
-                    <Text style={styles.actionBtnText}>Decline</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* ---------------- Friends Vibing Now (Live in Rooms) ---------------- */}
-        {liveFriends.length > 0 && (
-          <View style={styles.liveSection}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={styles.liveDot} />
-              <Text variant="titleSmall" style={styles.sectionTitle}>
-                Friends Vibing in Rooms ({liveFriends.length})
-              </Text>
-            </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.liveScroll}>
-              {liveFriends.map((f) => (
-                <View
-                  key={f.friendId}
-                  style={[styles.liveFriendCard, { backgroundColor: theme.colors.elevation.level2 }]}
-                >
-                  <View style={styles.liveAvatarBox}>
-                    {f.picture ? (
-                      <Image source={{ uri: f.picture }} style={styles.liveAvatar} />
-                    ) : (
-                      <View style={[styles.liveAvatar, styles.avatarFallback]}>
-                        <Icon name="account" size={20} color="#FFFFFF" />
-                      </View>
-                    )}
-                    <View style={styles.liveAvatarDot} />
-                  </View>
-
-                  <Text style={styles.liveFriendName} numberOfLines={1}>
-                    {f.name}
-                  </Text>
-                  <Text style={styles.liveRoomTitle} numberOfLines={1}>
-                    {f.roomInfo?.title || `Room #${f.roomInfo?.roomId}`}
-                  </Text>
-
-                  <TouchableOpacity
-                    style={styles.liveFollowBtn}
-                    onPress={() => handleFollowRoom(f.roomInfo?.roomId)}
-                    activeOpacity={0.8}
-                  >
-                    <Icon name="account-arrow-right" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-                    <Text style={styles.liveFollowBtnText}>Follow</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* ---------------- Search Filter Box ---------------- */}
-        <View style={styles.searchBox}>
-          <TextInput
-            placeholder="Search friends..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            mode="outlined"
-            dense
-            left={<TextInput.Icon icon="magnify" />}
-            style={{ backgroundColor: theme.colors.elevation.level1 }}
-          />
-        </View>
-
-        {/* ---------------- Friends List with Unread Badges & Direct Follow Buttons ---------------- */}
-        <View style={styles.friendsListSection}>
-          <Text variant="titleMedium" style={styles.friendsListHeading}>
-            All Friends ({friends.length})
-          </Text>
-
-          {friends.length === 0 ? (
-            <View style={styles.emptyStateBox}>
-              <Icon name="account-group-outline" size={48} color="#888888" />
-              <Text style={styles.emptyStateTitle}>No friends added yet</Text>
-              <Text style={styles.emptyStateSub}>
-                Head to the Party tab to match musical vibes and send friend requests!
-              </Text>
-              <TouchableOpacity
-                style={[styles.exploreBtn, { backgroundColor: theme.colors.primary }]}
-                onPress={() => router.push('/(tabs)/party')}
-              >
-                <Icon name="party-popper" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.exploreBtnText}>Find Vibe Matches</Text>
-              </TouchableOpacity>
-            </View>
-          ) : filteredFriends.length === 0 ? (
-            <View style={styles.emptyStateBox}>
-              <Text style={styles.emptyStateSub}>No friends matching "{searchQuery}"</Text>
-            </View>
-          ) : (
-            filteredFriends.map((f) => {
-              const friendId = f.friendId || f.id;
-              const unread = unreadCounts[friendId] || 0;
-              const isLive = f.isLiveInRoom && f.roomInfo?.roomId;
-
-              return (
-                <TouchableOpacity
-                  key={friendId}
-                  style={[styles.friendRow, { backgroundColor: theme.colors.elevation.level1 }]}
-                  onPress={() => openChat(f)}
-                  activeOpacity={0.78}
-                >
-                  <View style={styles.friendRowAvatarBox}>
-                    {f.picture ? (
-                      <Image source={{ uri: f.picture }} style={styles.friendRowAvatar} />
-                    ) : (
-                      <View style={[styles.friendRowAvatar, styles.avatarFallback]}>
-                        <Icon name="account" size={24} color="#FFFFFF" />
-                      </View>
-                    )}
-                    {isLive && <View style={styles.liveIndicatorBadge} />}
-                  </View>
-
-                  <View style={styles.friendRowMeta}>
-                    <View style={styles.friendRowTopLine}>
-                      <Text style={styles.friendRowName} numberOfLines={1}>
-                        {f.name}
-                      </Text>
-
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <View style={styles.synergyBadge}>
-                          <Icon name="shimmer" size={11} color="#FFD700" />
-                          <Text style={styles.synergyBadgeText}>{f.synergyPoints || 10} Synergy</Text>
-                        </View>
-
-                        {/* Unread Message Indicator per Chat in Chat List */}
-                        {unread > 0 && (
-                          <View style={styles.unreadCountBadge}>
-                            <Text style={styles.unreadCountText}>{unread}</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-
-                    <Text style={[styles.friendRowStatus, unread > 0 && styles.friendRowStatusUnread]} numberOfLines={1}>
-                      {isLive
-                        ? `🎧 Live in ${f.roomInfo?.title || `Room #${f.roomInfo?.roomId}`}`
-                        : f.lastMessage?.message
-                        ? f.lastMessage.message
-                        : 'Tap to open chat'}
-                    </Text>
-                  </View>
-
-                  {/* 1-Tap Follow Button in Chatlist Item */}
-                  {isLive ? (
-                    <TouchableOpacity
-                      style={styles.chatListFollowBtn}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleFollowRoom(f.roomInfo?.roomId);
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Icon name="account-arrow-right" size={14} color="#FFFFFF" />
-                      <Text style={styles.chatListFollowBtnText}>Follow</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <Icon name="chevron-right" size={20} color="#888888" style={{ marginLeft: 6 }} />
-                  )}
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </View>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      />
     </SafeAreaView>
   );
 }
@@ -1036,9 +1113,20 @@ const styles = StyleSheet.create({
   friendsListSection: {
     marginHorizontal: 16,
   },
+  friendsListHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginBottom: 10,
+  },
   friendsListHeading: {
     fontWeight: '700',
-    marginBottom: 10,
+  },
+  friendsListPaginationHint: {
+    fontSize: 12,
+    color: '#888888',
+    fontWeight: '500',
   },
   friendRow: {
     flexDirection: 'row',
@@ -1046,6 +1134,21 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     marginBottom: 8,
+    marginHorizontal: 16,
+  },
+  loadMoreFriendsWrapper: {
+    marginHorizontal: 16,
+    marginVertical: 10,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreFriendsText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#9E9EA7',
   },
   friendRowAvatarBox: {
     position: 'relative',
@@ -1228,6 +1331,15 @@ const styles = StyleSheet.create({
   chatRoomScrollContent: {
     padding: 14,
     gap: 10,
+  },
+  chatRoomFlatListContent: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  chatEmptyScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 14,
   },
   chatEmptyBox: {
     alignItems: 'center',

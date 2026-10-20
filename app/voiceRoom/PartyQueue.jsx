@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { usePartyDj } from '@/hooks/partyDj.hooks';
@@ -9,8 +9,15 @@ export default function PartyQueue({ roomId }) {
   const dj = usePartyDj({ roomId });
   if (!party.queue.length) return <Text style={styles.empty}>Queue is empty — DJ, add the first track.</Text>;
   return (
-    <View>
-      {party.queue.map((q, i) => {
+    <FlatList
+      style={styles.list}
+      contentContainerStyle={styles.listContent}
+      data={party.queue}
+      keyExtractor={(q) => String(q.queueId)}
+      showsVerticalScrollIndicator
+      keyboardShouldPersistTaps="handled"
+      removeClippedSubviews={false}
+      renderItem={({ item: q, index: i }) => {
         const active = i === party.currentIndex;
         return (
           <View key={q.queueId} style={[styles.row, active && styles.rowActive]}>
@@ -31,12 +38,14 @@ export default function PartyQueue({ roomId }) {
             )}
           </View>
         );
-      })}
-    </View>
+      }}
+    />
   );
 }
 
 const styles = StyleSheet.create({
+  list: { flex: 1, minHeight: 0 },
+  listContent: { paddingHorizontal: 10, paddingVertical: 6, paddingBottom: 12 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, gap: 8 },
   rowActive: { backgroundColor: '#241d33', borderRadius: 8, paddingHorizontal: 6 },
   idx: { color: '#666', fontSize: 12, width: 20 },

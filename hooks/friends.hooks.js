@@ -13,6 +13,8 @@ import {
 import {
   getLocalMessages,
   getLocalMessagesPaginated,
+  getCachedMessagesPaginated,
+  preloadMessagesForFriends,
   saveMessageLocally,
   getUnreadCounts,
   markChatAsRead,
@@ -67,6 +69,8 @@ export const useFriends = () => {
       const res = await getFriendsList(token);
       if (res?.success && Array.isArray(res.friends)) {
         setFriends(res.friends);
+        // Preload only top 5 chats, never all at once
+        preloadMessagesForFriends(res.friends.slice(0, 5).map((f) => f.friendId || f.id), 5);
       }
     } catch (e) {
       console.warn('Failed to load friends:', e);
@@ -221,19 +225,26 @@ export const useFriends = () => {
   const openChat = async (friend) => {
     const friendId = friend.friendId || friend.id;
     setActiveChatId(friendId);
-    setActiveChatFriend(friend);
     setDisplayLimit(20);
 
-    // 1. Immediately load last 20 messages from device
+    // 1. Immediately hydrate from memory cache if available so UI opens with messages instantly
+    const cached = getCachedMessagesPaginated(friendId, 20);
+    if (cached) {
+      setChatMessages(cached.messages);
+      setHasMoreOlder(cached.hasMore);
+    }
+    setActiveChatFriend(friend);
+
+    // 2. Load from device storage (keeps cache fresh)
     const { messages, hasMore } = await getLocalMessagesPaginated(friendId, 20);
     setChatMessages(messages);
     setHasMoreOlder(hasMore);
 
-    // 2. Mark chat as read
+    // 3. Mark chat as read
     await markChatAsRead(friendId);
     syncUnreadCounts();
 
-    // 3. Emit read receipt to sender over socket
+    // 4. Emit read receipt to sender over socket
     try {
       socket.emit('friend:read-receipt', { recipientId: friendId, readerId: user?.id });
     } catch (e) {}

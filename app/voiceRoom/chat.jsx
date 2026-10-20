@@ -124,6 +124,7 @@ const ChatComponent = ({ roomId }) => {
           ref={listRef}
           inverted
           data={reversed}
+          style={styles.list}
           keyExtractor={(item, i) =>
             String(item?._id ?? item?.id ?? `${item?.userId}-${item?._ts}-${i}`)
           }
@@ -144,46 +145,50 @@ const ChatComponent = ({ roomId }) => {
         ) : null}
       </View>
 
-      {/* quick reactions */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.reactionBar}
-      >
-        {REACTIONS.map((e) => (
-          <TouchableOpacity
-            key={e}
-            style={styles.reactionBtn}
-            onPress={() => sendReaction(e)}
-            hitSlop={6}
-          >
-            <Text style={styles.reactionEmoji}>{e}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {warn ? <Text style={styles.warn}>{warn}</Text> : null}
-
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          value={newMessage}
-          onChangeText={setNewMessage}
-          placeholder="Message the party…"
-          placeholderTextColor="#6f6792"
-          returnKeyType="send"
-          onSubmitEditing={() => send()}
-          maxLength={500}
-          multiline
-        />
-        <TouchableOpacity
-          onPress={() => send()}
-          style={[styles.sendButton, !newMessage.trim() && styles.sendDisabled]}
-          disabled={!newMessage.trim()}
-          hitSlop={8}
+      {/* footer: reactions fused flush onto the input */}
+      <View style={styles.footer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.reactionScroll}
+          contentContainerStyle={styles.reactionBar}
+          keyboardShouldPersistTaps="handled"
         >
-          <Ionicons name="send" size={17} color="#fff" />
-        </TouchableOpacity>
+          {REACTIONS.map((e) => (
+            <TouchableOpacity
+              key={e}
+              style={styles.reactionBtn}
+              onPress={() => sendReaction(e)}
+              hitSlop={6}
+            >
+              <Text style={styles.reactionEmoji}>{e}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {warn ? <Text style={styles.warn}>{warn}</Text> : null}
+
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            value={newMessage}
+            onChangeText={setNewMessage}
+            placeholder="Message the party…"
+            placeholderTextColor="#6f6792"
+            returnKeyType="send"
+            onSubmitEditing={() => send()}
+            maxLength={500}
+            multiline
+          />
+          <TouchableOpacity
+            onPress={() => send()}
+            style={[styles.sendButton, !newMessage.trim() && styles.sendDisabled]}
+            disabled={!newMessage.trim()}
+            hitSlop={8}
+          >
+            <Ionicons name="send" size={17} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -194,7 +199,8 @@ export default ChatComponent;
 const styles = StyleSheet.create({
   wrap: { flex: 1, minHeight: 0 },
   listWrap: { flex: 1, minHeight: 0 },
-  listContent: { paddingHorizontal: 10, paddingVertical: 8 },
+  list: { flex: 1, minHeight: 0 },
+  listContent: { paddingHorizontal: 10, paddingTop: 8, paddingBottom: 0 },
   emptyWrap: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
@@ -205,7 +211,7 @@ const styles = StyleSheet.create({
   emptyEmoji: { fontSize: 30, opacity: 0.85 },
   emptyText: { color: '#6f6792', fontSize: 12, textAlign: 'center' },
 
-  row: { flexDirection: 'row', alignItems: 'flex-end', marginVertical: 4 },
+  row: { flexDirection: 'row', alignItems: 'flex-end', marginVertical: 3 },
   rowMine: { justifyContent: 'flex-end' },
   rowTheirs: { justifyContent: 'flex-start' },
   avatar: {
@@ -243,7 +249,14 @@ const styles = StyleSheet.create({
   time: { fontSize: 9, color: '#6f6792', marginTop: 3, marginLeft: 4 },
   timeMine: { textAlign: 'right', marginRight: 4, marginLeft: 0 },
 
-  reactionBar: { paddingHorizontal: 8, paddingVertical: 6, gap: 6, alignItems: 'center' },
+  footer: {
+    backgroundColor: '#151022',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#271f3d',
+    paddingBottom: 8,
+  },
+  reactionScroll: { flexGrow: 0, flexShrink: 0 },
+  reactionBar: { paddingHorizontal: 8, paddingTop: 6, paddingBottom: 0, gap: 6, alignItems: 'center' },
   reactionBtn: {
     width: 36,
     height: 32,
@@ -251,7 +264,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 6,
   },
   reactionEmoji: { fontSize: 18 },
 
@@ -266,12 +278,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: 8,
-    paddingTop: 4,
-    paddingBottom: 8,
+    paddingTop: 2,
     gap: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#271f3d',
-    backgroundColor: '#151022',
   },
   input: {
     flex: 1,

@@ -55,9 +55,14 @@ export async function applyAudioOutput(targetMode) {
 /**
  * Hold a partial wake lock and high-perf wifi lock while in a room so
  * background playback / lock screen doesn't drop the connection.
+ * Passes the roomId through so the foreground notification can deep-link
+ * straight back into the party screen.
  */
-export async function acquirePartyLocks() {
+export async function acquirePartyLocks(roomId = null) {
   try {
+    if (roomId && NativeModules?.AudioRouteModule?.startPartyVoiceServiceWithRoom) {
+      await NativeModules.AudioRouteModule.startPartyVoiceServiceWithRoom(String(roomId));
+    }
     if (NativeModules?.AudioRouteModule?.acquirePartyLocks) {
       return await NativeModules.AudioRouteModule.acquirePartyLocks();
     }
