@@ -99,6 +99,7 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 10,
     padding: 5,
+    marginBottom: 100,
   },
   profileContainer:{
     flexDirection: "row",

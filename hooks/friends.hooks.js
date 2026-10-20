@@ -192,14 +192,18 @@ export const useFriends = () => {
   }, [isSignedIn, fetchPending, fetchFriends]);
 
   const sendRequest = async (recipientId) => {
+    if (!isSignedIn) throw { message: 'Please sign in to send friend requests' };
     const token = getTokenRef.current ? await getTokenRef.current() : null;
+    if (!token) throw { message: 'Please sign in to send friend requests' };
     const res = await apiSendRequest({ recipientId, token });
     fetchFriends();
     return res;
   };
 
   const respondRequest = async (friendshipId, action) => {
+    if (!isSignedIn) throw { message: 'Please sign in to respond to requests' };
     const token = getTokenRef.current ? await getTokenRef.current() : null;
+    if (!token) throw { message: 'Please sign in to respond to requests' };
     const res = await apiRespondRequest({ friendshipId, action, token });
     fetchFriends();
     fetchPending();
@@ -279,6 +283,7 @@ export const useFriends = () => {
   // Send regular chat message
   const sendChatMessage = async (text) => {
     if (!activeChatFriend || !text?.trim()) return;
+    if (!isSignedIn) return;
     const friendId = activeChatFriend.friendId || activeChatFriend.id;
     setSendingMsg(true);
 
@@ -314,6 +319,7 @@ export const useFriends = () => {
 
     try {
       const token = getTokenRef.current ? await getTokenRef.current() : null;
+      if (!token) return;
       await apiSendMessage({
         recipientId: friendId,
         message: text.trim(),
@@ -336,8 +342,10 @@ export const useFriends = () => {
   // Send Jam room invite to any friend (clickable invite in chat)
   const sendInvite = async ({ recipientId, roomId, roomTitle }) => {
     if (!recipientId || !roomId) return;
+    if (!isSignedIn) return { success: false, message: 'Please sign in to send invites' };
     try {
       const token = getTokenRef.current ? await getTokenRef.current() : null;
+      if (!token) return { success: false, message: 'Please sign in to send invites' };
       const myName =
         user?.fullName ||
         [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||

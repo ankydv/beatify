@@ -25,8 +25,17 @@ export const usePartyRoomDiscovery = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchRooms = useCallback(async () => {
+    // Never hit the API when logged out — backend would 401 and spams logs.
+    if (!isSignedIn) {
+      setActiveRooms([]);
+      return;
+    }
     try {
-      const token = isSignedIn && getTokenRef.current ? await getTokenRef.current() : null;
+      const token = getTokenRef.current ? await getTokenRef.current() : null;
+      if (!token) {
+        setActiveRooms([]);
+        return;
+      }
       const res = await getActiveRooms({
         vibe: selectedVibe === 'All' ? '' : selectedVibe,
         search: searchQuery,
@@ -34,57 +43,111 @@ export const usePartyRoomDiscovery = () => {
       });
       if (res?.success && Array.isArray(res.rooms)) {
         setActiveRooms(res.rooms);
+      } else {
+        setActiveRooms([]);
       }
     } catch (e) {
       console.warn('Failed to load active rooms:', e);
+      setActiveRooms([]);
     }
   }, [selectedVibe, searchQuery, isSignedIn]);
 
   const fetchDiscover = useCallback(async () => {
+    if (!isSignedIn) {
+      setDiscoverCategories([]);
+      setFeaturedRoom(null);
+      return;
+    }
     try {
-      const token = isSignedIn && getTokenRef.current ? await getTokenRef.current() : null;
+      const token = getTokenRef.current ? await getTokenRef.current() : null;
+      if (!token) {
+        setDiscoverCategories([]);
+        setFeaturedRoom(null);
+        return;
+      }
       const res = await getDiscoverRooms(token);
       if (res?.success) {
         setDiscoverCategories(res.categories || []);
         if (res.featured) setFeaturedRoom(res.featured);
+      } else {
+        setDiscoverCategories([]);
+        setFeaturedRoom(null);
       }
+      
     } catch (e) {
       console.warn('Failed to load discover categories:', e);
     }
   }, [isSignedIn]);
 
   const fetchVibeData = useCallback(async () => {
+    if (!isSignedIn) {
+      setVibeProfile(null);
+      setMatchedUsers([]);
+      return;
+    }
     try {
-      const token = isSignedIn && getTokenRef.current ? await getTokenRef.current() : null;
+      const token = getTokenRef.current ? await getTokenRef.current() : null;
+      if (!token) {
+        setVibeProfile(null);
+        setMatchedUsers([]);
+        return;
+      }
       const res = await getVibeMatches(token);
       if (res?.success) {
         setVibeProfile(res.userVibe || null);
         setMatchedUsers(res.matchedUsers || []);
+      } else {
+        setVibeProfile(null);
+        setMatchedUsers([]);
       }
+      
     } catch (e) {
       console.warn('Failed to load vibe matches:', e);
     }
   }, [isSignedIn]);
 
   const loadAll = useCallback(async () => {
+    if (!isSignedIn) {
+      setActiveRooms([]);
+      setDiscoverCategories([]);
+      setFeaturedRoom(null);
+      setVibeProfile(null);
+      setMatchedUsers([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     await Promise.allSettled([fetchRooms(), fetchDiscover(), fetchVibeData()]);
     setLoading(false);
-  }, [fetchRooms, fetchDiscover, fetchVibeData]);
+  }, [isSignedIn, fetchRooms, fetchDiscover, fetchVibeData]);
 
   const onRefresh = useCallback(async () => {
+    if (!isSignedIn) return;
     setRefreshing(true);
     await Promise.allSettled([fetchRooms(), fetchDiscover(), fetchVibeData()]);
     setRefreshing(false);
-  }, [fetchRooms, fetchDiscover, fetchVibeData]);
+  }, [isSignedIn, fetchRooms, fetchDiscover, fetchVibeData]);
 
-  // Initial and filter changes
+  // Initial and filter changes — no-op when logged out (also clears stale data).
   useEffect(() => {
+    if (!isSignedIn) {
+      setActiveRooms([]);
+      setDiscoverCategories([]);
+      setFeaturedRoom(null);
+      setVibeProfile(null);
+      setMatchedUsers([]);
+      setLoading(false);
+      return;
+    }
     loadAll();
-  }, [selectedVibe, searchQuery]);
+  }, [isSignedIn, selectedVibe, searchQuery]);
 
   // Hook socket for debounced room discovery updates (never listen to rapid dj:state on discovery)
+  // IMPORTANT: never connect the socket when logged out — Party tab previously
+  // forced ensureSocketConnected() with no token, fighting EventListeners'
+  // disconnect-on-signout and causing 401 loops / null-ref crashes.
   useEffect(() => {
+    if (!isSignedIn) return;
     let alive = true;
     let debounceTimer = null;
 
@@ -98,7 +161,9 @@ export const usePartyRoomDiscovery = () => {
 
     (async () => {
       try {
-        await ensureSocketConnected();
+        const token = getTokenRef.current ? await getTokenRef.current() : null;
+        if (!alive || !token) return;
+        await ensureSocketConnected(() => Promise.resolve(token));
         if (!alive) return;
 
         socket.on('party:rooms-updated', handleRoomChange);
@@ -114,10 +179,16 @@ export const usePartyRoomDiscovery = () => {
       socket.off('user-joined', handleRoomChange);
       socket.off('user-left', handleRoomChange);
     };
-  }, [fetchRooms]);
+  }, [isSignedIn, fetchRooms]);
 
   const createRoom = async ({ title, vibe, tags, isPrivate, roomId }) => {
-    const token = isSignedIn && getTokenRef.current ? await getTokenRef.current() : null;
+    if (!isSignedIn) {
+      throw { message: 'Please sign in to create a party room' };
+    }
+    const token = getTokenRef.current ? await getTokenRef.current() : null;
+    if (!token) {
+      throw { message: 'Please sign in to create a party room' };
+    }
     const res = await apiCreateRoom({
       title,
       vibe,
@@ -131,11 +202,11 @@ export const usePartyRoomDiscovery = () => {
   };
 
   return {
-    activeRooms,
-    discoverCategories,
+    activeRooms: activeRooms || [],
+    discoverCategories: discoverCategories || [],
     featuredRoom,
     vibeProfile,
-    matchedUsers,
+    matchedUsers: matchedUsers || [],
     selectedVibe,
     setSelectedVibe,
     searchQuery,
@@ -144,6 +215,7 @@ export const usePartyRoomDiscovery = () => {
     refreshing,
     onRefresh,
     createRoom,
-    currentUser: user,
+    currentUser: user || null,
+    isSignedIn: !!isSignedIn,
   };
 };

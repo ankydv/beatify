@@ -15,6 +15,11 @@ import { Text, useTheme, TextInput, Button, ActivityIndicator } from 'react-nati
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@clerk/clerk-expo';
+import { useDispatch } from 'react-redux';
+import { openModal } from '@/state/slices/modal.slice';
+import ClerkSignIn from '@/components/ClerkSignIn';
+import AuthGate from '@/components/AuthGate';
 
 import { usePartyRoomDiscovery } from '@/hooks/partyRoomDiscovery.hooks';
 import { useFriends } from '@/hooks/friends.hooks';
@@ -34,11 +39,13 @@ const VIBE_OPTIONS = [
 const PartyScreen = () => {
   const router = useRouter();
   const theme = useTheme();
+  const dispatch = useDispatch();
+  const { isSignedIn } = useAuth();
 
   const {
-    activeRooms,
+    activeRooms = [],
     vibeProfile,
-    matchedUsers,
+    matchedUsers = [],
     selectedVibe,
     setSelectedVibe,
     searchQuery,
@@ -51,12 +58,16 @@ const PartyScreen = () => {
   } = usePartyRoomDiscovery();
 
   const {
-    friends,
-    pendingRequests,
+    friends = [],
+    pendingRequests = [],
     sendRequest,
     respondRequest,
     sendInvite
   } = useFriends();
+
+  const promptLogin = () => {
+    dispatch(openModal(<ClerkSignIn />));
+  };
 
   // Friend request state
   const [requestedFriendIds, setRequestedFriendIds] = useState([]);
@@ -75,6 +86,10 @@ const PartyScreen = () => {
 
   // Send friend request handler
   const handleSendFriendRequest = async (peerId) => {
+    if (!isSignedIn) {
+      promptLogin();
+      return;
+    }
     try {
       setRequestedFriendIds((prev) => [...prev, peerId]);
       await sendRequest(peerId);
@@ -105,6 +120,11 @@ const PartyScreen = () => {
 
   // Handle Room Creation
   const handleCreateRoomSubmit = async () => {
+    if (!isSignedIn) {
+      setCreateModalVisible(false);
+      promptLogin();
+      return;
+    }
     setCreating(true);
     try {
       const generatedId = newCustomRoomId.trim() || String(Math.floor(1000 + Math.random() * 9000));
@@ -136,6 +156,10 @@ const PartyScreen = () => {
 
   // Handle Accept/Decline of friend request
   const handleRespondRequest = async (friendshipId, action) => {
+    if (!isSignedIn) {
+      promptLogin();
+      return;
+    }
     try {
       await respondRequest(friendshipId, action);
       if (action === 'accept') {
@@ -148,6 +172,10 @@ const PartyScreen = () => {
 
   // Quick match to the most active room or create a fresh instant jam room
   const handleQuickMatch = async () => {
+    if (!isSignedIn) {
+      promptLogin();
+      return;
+    }
     if (activeRooms && activeRooms.length > 0) {
       joinRoom(activeRooms[0].roomId);
     } else {
@@ -165,13 +193,17 @@ const PartyScreen = () => {
 
   // Handle Jam Together with another user (never hardcodes 1001)
   const handleJamTogether = async (peer) => {
-    if (peer.roomId) {
+    if (!isSignedIn) {
+      promptLogin();
+      return;
+    }
+    if (peer?.roomId) {
       joinRoom(peer.roomId);
       return;
     }
 
     const uniqueRoomId = String(Math.floor(1000 + Math.random() * 9000));
-    const peerName = (peer.name || 'Friend').split(' ')[0];
+    const peerName = (peer?.name || 'Friend').split(' ')[0];
     const myName = currentUser?.firstName || 'Host';
 
     const roomTitle = `Jam: ${myName} & ${peerName} 🎧`;
@@ -184,7 +216,7 @@ const PartyScreen = () => {
         roomId: uniqueRoomId,
       });
 
-      const peerId = peer.id || peer.friendId;
+      const peerId = peer?.id || peer?.friendId;
       if (peerId) {
         await sendInvite({
           recipientId: peerId,
@@ -207,6 +239,19 @@ const PartyScreen = () => {
     streakDays: 4,
     badges: [],
   };
+
+  // Logged-out users see a login prompt instead of the live party feed.
+  // This kills the reported null-ref crash and stops all room/friend APIs.
+  if (!isSignedIn) {
+    return (
+      <AuthGate
+        isSignedIn={false}
+        title="Join the Party 🎉"
+        subtitle="Sign in to discover live party rooms, match vibes and jam with friends."
+        icon="party-popper"
+      />
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>

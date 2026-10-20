@@ -18,7 +18,11 @@ import { Text, useTheme, TextInput, Button, ActivityIndicator } from 'react-nati
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useUser } from '@clerk/clerk-expo';
+import { useUser, useAuth } from '@clerk/clerk-expo';
+import { useDispatch } from 'react-redux';
+import { openModal } from '@/state/slices/modal.slice';
+import ClerkSignIn from '@/components/ClerkSignIn';
+import AuthGate from '@/components/AuthGate';
 import { useIsFocused } from '@react-navigation/native';
 import { socket } from '@/configs/socket';
 import { setActiveChatId, markChatAsRead } from '@/services/chatStorage.service';
@@ -207,7 +211,9 @@ export default function ChatScreen() {
   const router = useRouter();
   const { friendId: paramFriendId } = useLocalSearchParams();
   const theme = useTheme();
+  const dispatch = useDispatch();
   const { user } = useUser();
+  const { isSignedIn } = useAuth();
 
   const {
     friends,
@@ -292,27 +298,31 @@ export default function ChatScreen() {
   // When user switches away to another tab, activeChatId MUST be cleared so incoming messages
   // are NOT falsely treated as "viewing conversation" and properly trigger unread badge & notification.
   useEffect(() => {
-    if (isFocused && activeChatFriend) {
+    if (isFocused && activeChatFriend && isSignedIn) {
       const friendId = activeChatFriend.friendId || activeChatFriend.id;
       setActiveChatId(friendId);
       markChatAsRead(friendId);
-      socket.emit('friend:read-receipt', { recipientId: friendId, readerId: user?.id });
+      try {
+        socket.emit('friend:read-receipt', { recipientId: friendId, readerId: user?.id });
+      } catch (e) {}
     } else {
       setActiveChatId(null);
     }
-  }, [isFocused, activeChatFriend, user?.id]);
+  }, [isFocused, activeChatFriend, user?.id, isSignedIn]);
 
   // Real-time blue tick read receipts: whenever new messages arrive while this screen is focused
   useEffect(() => {
-    if (isFocused && activeChatFriend && chatMessages.length > 0) {
+    if (isFocused && activeChatFriend && chatMessages.length > 0 && isSignedIn) {
       const lastMsg = chatMessages[chatMessages.length - 1];
       if (lastMsg && !lastMsg.isOutgoing) {
         const friendId = activeChatFriend.friendId || activeChatFriend.id;
         markChatAsRead(friendId);
-        socket.emit('friend:read-receipt', { recipientId: friendId, readerId: user?.id });
+        try {
+          socket.emit('friend:read-receipt', { recipientId: friendId, readerId: user?.id });
+        } catch (e) {}
       }
     }
-  }, [chatMessages, isFocused, activeChatFriend, user?.id]);
+  }, [chatMessages, isFocused, activeChatFriend, user?.id, isSignedIn]);
 
   // Inverted data for FlatList: index 0 is newest (bottom)
   const invertedMessages = useMemo(() => {
@@ -692,6 +702,24 @@ export default function ChatScreen() {
       </View>
     );
   }, [hasMoreFriends, handleLoadMoreFriends, paginatedFriends.length, filteredFriends.length]);
+
+  // -------------------------------------------------------------
+  // LOGGED-OUT GATE: chat is disabled until sign-in.
+  // useFriends() already returns empty friends/pending when logged out,
+  // but without this gate the screen misleadingly shows "No friends yet"
+  // and any socket/API side-effect below could still fire.
+  // Placed AFTER all hooks (rules-of-hooks) but BEFORE any rendering branch.
+  // -------------------------------------------------------------
+  if (!isSignedIn) {
+    return (
+      <AuthGate
+        isSignedIn={false}
+        title="Vibe Chats 💬"
+        subtitle="Sign in to chat with friends, earn synergy points and get party invites."
+        icon="chat"
+      />
+    );
+  }
 
   // -------------------------------------------------------------
   // DEDICATED FULL-SCREEN CHAT CONVERSATION VIEW (NOT A MODAL)
